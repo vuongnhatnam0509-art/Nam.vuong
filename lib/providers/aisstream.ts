@@ -177,94 +177,125 @@ export function finalizeAisPosition(draft: AisPositionDraft): AisLivePosition | 
   };
 }
 
+export function subscribeAisPosition(
+  mmsi: string,
+  keys: ProviderKeys | undefined,
+  handlers: {
+    onPosition: (live: AisLivePosition) => void;
+    onError?: (error: Error) => void;
+  },
+): () => void {
+  const apiKey = resolvedKeys(keys).aisstream;
+  if (!apiKey) {
+    handlers.onError?.(new Error("Missing AISSTREAM_API_KEY"));
+    return () => undefined;
+  }
+  if (!isMmsiNumber(mmsi)) {
+    handlers.onError?.(new Error("AISStream lọc theo MMSI 9 số."));
+    return () => undefined;
+  }
+  if (typeof WebSocket === "undefined") {
+    handlers.onError?.(new Error("Môi trường này không hỗ trợ WebSocket để gọi AISStream."));
+    return () => undefined;
+  }
+
+  let closed = false;
+  const draft: AisPositionDraft = { mmsi };
+  const ws = new WebSocket(WS_URL);
+
+  const fail = (error: Error) => {
+    if (closed) return;
+    handlers.onError?.(error);
+  };
+
+  ws.addEventListener("open", () => {
+    if (closed) return;
+    ws.send(
+      JSON.stringify({
+        APIKey: apiKey,
+        BoundingBoxes: [
+          [
+            [-90, -180],
+            [90, 180],
+          ],
+        ],
+        FiltersShipMMSI: [mmsi],
+        FilterMessageTypes: [
+          "PositionReport",
+          "ShipStaticData",
+          "StandardClassBPositionReport",
+          "ExtendedClassBPositionReport",
+        ],
+      }),
+    );
+  });
+
+  ws.addEventListener("message", (event) => {
+    if (closed) return;
+    try {
+      const json: unknown = JSON.parse(payloadToText(event.data));
+      const rec = asRecord(json);
+      if (typeof rec.error === "string") {
+        fail(new Error(rec.error));
+        return;
+      }
+      applyAisEnvelope(draft, json);
+      const built = finalizeAisPosition(draft);
+      if (built) handlers.onPosition(built);
+    } catch {
+      /* ignore non-JSON frames */
+    }
+  });
+
+  ws.addEventListener("error", () => {
+    fail(new Error("Không kết nối được wss://stream.aisstream.io (mạng công ty có thể chặn WebSocket)."));
+  });
+
+  ws.addEventListener("close", () => {
+    if (closed) return;
+    const built = finalizeAisPosition(draft);
+    if (built) handlers.onPosition(built);
+  });
+
+  return () => {
+    closed = true;
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+  };
+}
+
 export async function listenAisPosition(
   mmsi: string,
   keys?: ProviderKeys,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<AisLivePosition> {
-  const apiKey = resolvedKeys(keys).aisstream;
-  if (!apiKey) throw new Error("Missing AISSTREAM_API_KEY");
-  if (!isMmsiNumber(mmsi)) throw new Error("AISStream lọc theo MMSI 9 số, không theo tên tàu hay số container.");
-  if (typeof WebSocket === "undefined") {
-    throw new Error("Môi trường này không hỗ trợ WebSocket để gọi AISStream.");
-  }
-
   return new Promise((resolve, reject) => {
     let settled = false;
-    const draft: AisPositionDraft = { mmsi };
-    const ws = new WebSocket(WS_URL);
+    let stop: () => void = () => undefined;
 
     const done = (error?: Error, value?: AisLivePosition) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
+      stop();
       if (error) reject(error);
       else resolve(value!);
     };
 
     const timer = setTimeout(() => {
-      const built = finalizeAisPosition(draft);
-      if (built) done(undefined, built);
-      else {
-        done(
-          new Error(
-            "AISStream không nhận được vị trí trong thời gian chờ. Tàu có thể ngoài vùng phủ sóng AIS, hoặc API key sai.",
-          ),
-        );
-      }
+      done(
+        new Error(
+          "AISStream không nhận được vị trí trong thời gian chờ. Tàu có thể ngoài vùng phủ sóng AIS, hoặc API key sai.",
+        ),
+      );
     }, timeoutMs);
 
-    ws.addEventListener("open", () => {
-      ws.send(
-        JSON.stringify({
-          APIKey: apiKey,
-          BoundingBoxes: [
-            [
-              [-90, -180],
-              [90, 180],
-            ],
-          ],
-          FiltersShipMMSI: [mmsi],
-          FilterMessageTypes: [
-            "PositionReport",
-            "ShipStaticData",
-            "StandardClassBPositionReport",
-            "ExtendedClassBPositionReport",
-          ],
-        }),
-      );
-    });
-
-    ws.addEventListener("message", (event) => {
-      try {
-        const json: unknown = JSON.parse(payloadToText(event.data));
-        const rec = asRecord(json);
-        if (typeof rec.error === "string") {
-          done(new Error(rec.error));
-          return;
-        }
-        applyAisEnvelope(draft, json);
-        const built = finalizeAisPosition(draft);
-        if (built) done(undefined, built);
-      } catch {
-        /* ignore non-JSON frames */
-      }
-    });
-
-    ws.addEventListener("error", () => {
-      done(new Error("Không kết nối được wss://stream.aisstream.io (mạng công ty có thể chặn WebSocket)."));
-    });
-
-    ws.addEventListener("close", () => {
-      if (settled) return;
-      const built = finalizeAisPosition(draft);
-      if (built) done(undefined, built);
-      else done(new Error("AISStream đóng kết nối trước khi có vị trí."));
+    stop = subscribeAisPosition(mmsi, keys, {
+      onPosition: (live) => done(undefined, live),
+      onError: (error) => done(error),
     });
   });
 }

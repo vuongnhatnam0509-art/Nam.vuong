@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { trackShipment } from "./index";
 
+delete process.env.AISSTREAM_API_KEY;
+delete process.env.SEARATES_API_KEY;
+delete process.env.SHIPSGO_AUTH_CODE;
+delete process.env.JSONCARGO_API_KEY;
+
 describe("trackShipment", () => {
   it("does not invent live data for a sample container when demo is off", async () => {
     const response = await trackShipment({ query: "MSKU3900520" });

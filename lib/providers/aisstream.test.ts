@@ -50,9 +50,12 @@ describe("AISStream parser", () => {
     expect(finalizeAisPosition(draft)).toBeNull();
   });
 
-  it("maps Ever Given name/IMO to a public MMSI", () => {
+  it("maps public vessel names and IMO numbers to MMSI", () => {
     expect(knownMmsi("EVER GIVEN")).toBe("353136000");
+    expect(knownMmsi("evergiven")).toBe("353136000");
     expect(knownMmsi("9811000")).toBe("353136000");
-    expect(knownMmsi("MAERSK ESSEN")).toBeUndefined();
+    expect(knownMmsi("MAERSK ESSEN")).toBe("219210000");
+    expect(knownMmsi("CMA CGM MARCO POLO")).toBe("311000923");
+    expect(knownMmsi("UNKNOWN STAR")).toBeUndefined();
   });
 });

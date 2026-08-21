@@ -109,7 +109,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
 
     if (hasAisStream(keys) && !mmsi) {
       return fail(
-        "AISStream (aisstream.io) chỉ lọc theo MMSI 9 số, không theo tên tàu. Nhập MMSI (ví dụ Ever Given: 353136000) hoặc gắn JSONCargo để đổi tên/IMO → MMSI.",
+        "AISStream lọc theo MMSI. Tên tàu chỉ tra được nếu có trong bảng công khai (Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong) hoặc JSONCargo. Hoặc nhập MMSI 9 số.",
         "need_mmsi",
         providers,
         detected,
@@ -128,6 +128,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   }
 
   async function liveOrThrow(result: TrackingResult) {
+    if (input.skipAisEnrich) return result;
     return enrichWithAisStream(result, keys);
   }
 

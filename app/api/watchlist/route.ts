@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addWatch, listWatch, removeWatch } from "@/lib/watchlist";
-import type { QueryKind } from "@/lib/types";
+import type { WatchItem } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -9,19 +9,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => ({}))) as {
-    query?: string;
-    kind?: QueryKind;
-    carrier?: string | null;
-    status?: string | null;
-    origin?: string | null;
-    destination?: string | null;
-    etd?: string | null;
-    eta?: string | null;
-    vessel?: string | null;
-    voyage?: string | null;
-    lastEvent?: string | null;
-  };
+  const body = (await request.json().catch(() => ({}))) as Partial<WatchItem> & { query?: string };
   if (!body.query) {
     return NextResponse.json({ error: "Thiếu số shipment" }, { status: 400 });
   }
@@ -37,6 +25,14 @@ export async function POST(request: NextRequest) {
     vessel: body.vessel,
     voyage: body.voyage,
     lastEvent: body.lastEvent,
+    delayed: body.delayed,
+    delayNote: body.delayNote,
+    delayHours: body.delayHours,
+    mmsi: body.mmsi,
+    lat: body.lat,
+    lng: body.lng,
+    error: body.error ?? null,
+    refreshedAt: body.refreshedAt,
   });
   return NextResponse.json({ items });
 }

@@ -1,7 +1,7 @@
-import { formatCoord, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { TrackingResult } from "@/lib/types";
 import { DateBoard } from "./DateBoard";
-import { MapEmbed } from "./MapEmbed";
+import { LiveVesselPanel } from "./LiveVesselPanel";
 import { Timeline } from "./Timeline";
 
 export function ResultView({
@@ -14,7 +14,6 @@ export function ResultView({
   onWatch?: () => void;
 }) {
   const vessel = result.vessel;
-  const hasMap = vessel?.lat != null && vessel?.lng != null;
 
   return (
     <section className="result">
@@ -30,6 +29,7 @@ export function ResultView({
           {result.source === "jsoncargo" && "LIVE — JSONCargo"}
           {result.source === "shipsgo" && "LIVE — ShipsGo"}
           {result.vessel?.aisLive && result.source !== "aisstream" ? " · vị trí tàu bổ sung từ AISStream" : ""}
+          {result.source === "aisstream" ? " · giữ trang này để AIS cập nhật" : ""}
         </div>
       )}
 
@@ -65,64 +65,7 @@ export function ResultView({
         </article>
         <article className="panel">
           <h3>Tàu</h3>
-          {vessel ? (
-            <>
-              <p className="vessel-name">{vessel.name}</p>
-              <ul className="kv">
-                {vessel.voyage && (
-                  <li>
-                    <span>Chuyến</span>
-                    <strong>{vessel.voyage}</strong>
-                  </li>
-                )}
-                {vessel.imo && (
-                  <li>
-                    <span>IMO</span>
-                    <strong>{vessel.imo}</strong>
-                  </li>
-                )}
-                {vessel.mmsi && (
-                  <li>
-                    <span>MMSI</span>
-                    <strong>{vessel.mmsi}</strong>
-                  </li>
-                )}
-                {formatCoord(vessel.lat, vessel.lng) && (
-                  <li>
-                    <span>Vị trí</span>
-                    <strong>{formatCoord(vessel.lat, vessel.lng)}</strong>
-                  </li>
-                )}
-                {vessel.speed != null && (
-                  <li>
-                    <span>Tốc độ</span>
-                    <strong>{vessel.speed} kn</strong>
-                  </li>
-                )}
-                {vessel.destination && (
-                  <li>
-                    <span>Điểm đến AIS</span>
-                    <strong>{vessel.destination}</strong>
-                  </li>
-                )}
-                {vessel.lastPositionAt && (
-                  <li>
-                    <span>AIS lúc</span>
-                    <strong>{formatDateTime(vessel.lastPositionAt)}</strong>
-                  </li>
-                )}
-                {vessel.aisLive && (
-                  <li>
-                    <span>Nguồn vị trí</span>
-                    <strong>AISStream live</strong>
-                  </li>
-                )}
-              </ul>
-              {hasMap && <MapEmbed lat={vessel.lat!} lng={vessel.lng!} label={vessel.name} />}
-            </>
-          ) : (
-            <p className="muted">Chưa có thông tin tàu.</p>
-          )}
+          <LiveVesselPanel result={result} />
         </article>
       </div>
 

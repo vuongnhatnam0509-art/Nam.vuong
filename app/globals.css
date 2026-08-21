@@ -382,8 +382,43 @@ a {
   font-size: 14px;
 }
 
-.date-board .expected strong {
-  color: var(--sand);
+.live-dot {
+  color: var(--ok);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.bulk-text {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #07141f;
+  color: var(--ink);
+  padding: 12px 14px;
+  font: inherit;
+  resize: vertical;
+}
+
+.watch-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.delay-flag {
+  color: var(--danger);
+}
+
+tr.delayed td {
+  background: rgba(240, 164, 160, 0.08);
+}
+
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
 }
 
 .schedule-form {

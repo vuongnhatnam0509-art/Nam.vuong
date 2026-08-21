@@ -94,6 +94,13 @@ export type WatchItem = {
   lastEvent?: string | null;
   watchedAt: string;
   refreshedAt?: string | null;
+  delayed?: boolean;
+  delayNote?: string | null;
+  delayHours?: number | null;
+  mmsi?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  error?: string | null;
 };
 
 export type TrackRequest = {
@@ -102,6 +109,8 @@ export type TrackRequest = {
   carrier?: string;
   /** Only return canned samples when the user explicitly asks. Never auto-demo. */
   demo?: boolean;
+  /** Skip AISStream enrich on container/BL (bulk + watchlist refresh). Vessel MMSI lookup still uses AIS. */
+  skipAisEnrich?: boolean;
   keys?: {
     searates?: string;
     shipsgo?: string;

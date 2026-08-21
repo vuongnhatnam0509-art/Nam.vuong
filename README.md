@@ -51,10 +51,13 @@ Hoặc lúc dev: `npm run dev` rồi mở http://localhost:3000
 ## Dùng hàng ngày
 
 1. Tab **Shipment**: paste số container hoặc bill → bảng ngày giờ + timeline (**cần SeaRates/ShipsGo**)
-2. Tab **Tàu**: paste MMSI 9 số → vị trí AIS live (**cần AISStream**)
-3. Bấm **Theo dõi** để các phòng cùng thấy
-4. Tab **Lịch tàu**: POL→POD (**cần SeaRates**)
-5. **Xem mẫu** chỉ để xem giao diện — banner vàng = không phải live
+2. Tàu: paste **MMSI** hoặc tên trong bảng công khai (Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong) → AISStream live; **giữ trang mở** để vị trí cập nhật
+3. **Danh sách hàng loạt**: dán nhiều số hoặc tải CSV/Excel (tối đa 40) → tra một lúc, có thể «Theo dõi» cả list
+4. Tab **Theo dõi**: tự làm mới mỗi 3 phút, cờ đỏ nếu ETA lùi ≥12 giờ hoặc ETA đã quá hạn
+5. Tab **Lịch tàu**: POL→POD (**cần SeaRates**)
+6. **Xem mẫu** chỉ để xem giao diện — banner vàng = không phải live
+
+App **không phải Project44**: chỉ ocean, không EDI hãng, không air/truck. Muốn shipment live thì cần SeaRates; AISStream không đọc số container.
 
 ## GitHub
 

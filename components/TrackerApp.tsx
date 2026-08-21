@@ -3,11 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CARRIERS } from "@/lib/carriers";
-import { formatDate } from "@/lib/format";
-import { lastAndNext } from "@/lib/milestones";
+import { KNOWN_VESSELS } from "@/lib/providers/known-mmsi";
 import type { QueryKind, TrackResponse, WatchItem } from "@/lib/types";
+import { watchFieldsFromResult } from "@/lib/watch-from-result";
+import { BulkSearch } from "./BulkSearch";
 import { ResultView } from "./ResultView";
 import { ScheduleBoard } from "./ScheduleBoard";
+import { WatchPanel } from "./WatchPanel";
 
 const HISTORY_KEY = "ocean-track-history";
 const KEYS_KEY = "ocean-track-keys";
@@ -43,6 +45,7 @@ export function TrackerApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tab, setTab] = useState<AppTab>("shipment");
   const [watchlist, setWatchlist] = useState<WatchItem[]>([]);
+  const [watchRefreshing, setWatchRefreshing] = useState(false);
   const [keys, setKeys] = useState<SavedKeys>(readKeys);
   const [envProviders, setEnvProviders] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>(() => {
@@ -93,6 +96,15 @@ export function TrackerApp() {
     localStorage.setItem(KEYS_KEY, JSON.stringify(next));
   }
 
+  function payloadKeys() {
+    return {
+      searates: keys.searates || undefined,
+      shipsgo: keys.shipsgo || undefined,
+      jsoncargo: keys.jsoncargo || undefined,
+      aisstream: keys.aisstream || undefined,
+    };
+  }
+
   async function search(nextQuery: string, nextKind: KindOption, nextCarrier: string, demo = false) {
     const q = nextQuery.trim();
     if (!q) return;
@@ -107,12 +119,7 @@ export function TrackerApp() {
     if (demo) searchParams.set("demo", "1");
     router.replace(`/?${searchParams.toString()}`);
 
-    const payloadKeys = {
-      searates: keys.searates || undefined,
-      shipsgo: keys.shipsgo || undefined,
-      jsoncargo: keys.jsoncargo || undefined,
-      aisstream: keys.aisstream || undefined,
-    };
+    const payloadKeysBody = payloadKeys();
 
     try {
       const res = await fetch("/api/track", {
@@ -123,7 +130,7 @@ export function TrackerApp() {
           kind: nextKind,
           carrier: nextCarrier || undefined,
           demo,
-          keys: payloadKeys,
+          keys: payloadKeysBody,
         }),
       });
       const data = (await res.json()) as TrackResponse;
@@ -153,24 +160,11 @@ export function TrackerApp() {
 
   async function watchCurrent() {
     if (!response?.ok) return;
-    const result = response.result;
-    const { last } = lastAndNext(result.events);
+    const fields = watchFieldsFromResult(response.result);
     const res = await fetch("/api/watchlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: result.containerNumber || result.billOfLading || result.query,
-        kind: result.kind,
-        carrier: result.carrier?.code,
-        status: result.status,
-        origin: result.loadingPort || result.origin,
-        destination: result.dischargingPort || result.destination,
-        etd: result.atd,
-        eta: result.eta,
-        vessel: result.vessel?.name,
-        voyage: result.vessel?.voyage,
-        lastEvent: last ? `${last.status} · ${last.time ?? ""}` : null,
-      }),
+      body: JSON.stringify(fields),
     });
     const data = (await res.json()) as { items?: WatchItem[] };
     setWatchlist(data.items ?? []);
@@ -182,6 +176,31 @@ export function TrackerApp() {
     const data = (await res.json()) as { items?: WatchItem[] };
     setWatchlist(data.items ?? []);
   }
+
+  async function refreshWatch() {
+    if (watchRefreshing) return;
+    setWatchRefreshing(true);
+    try {
+      const res = await fetch("/api/watchlist/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: payloadKeys() }),
+      });
+      const data = (await res.json()) as { items?: WatchItem[] };
+      setWatchlist(data.items ?? []);
+    } finally {
+      setWatchRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "watch" || watchlist.length === 0) return;
+    const id = window.setInterval(() => {
+      void refreshWatch();
+    }, 180_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, watchlist.length]);
 
   return (
     <div className="shell">
@@ -279,55 +298,16 @@ export function TrackerApp() {
       {tab === "schedule" && <ScheduleBoard keys={{ searates: keys.searates || undefined }} />}
 
       {tab === "watch" && (
-        <section className="search-card">
-          <h3 className="settings-title">Shipment các phòng đang theo dõi</h3>
-          {watchlist.length === 0 && <p className="muted">Chưa có shipment. Tra cứu xong bấm Theo dõi.</p>}
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Số</th>
-                  <th>Hãng</th>
-                  <th>Tuyến</th>
-                  <th>ETD</th>
-                  <th>ETA</th>
-                  <th>Tàu</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {watchlist.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <button
-                        type="button"
-                        className="linkish"
-                        onClick={() => {
-                          setTab("shipment");
-                          void search(item.query, item.kind, item.carrier ?? "");
-                        }}
-                      >
-                        {item.query}
-                      </button>
-                    </td>
-                    <td>{item.carrier || "—"}</td>
-                    <td>
-                      {item.origin || "—"} → {item.destination || "—"}
-                    </td>
-                    <td>{formatDate(item.etd)}</td>
-                    <td>{formatDate(item.eta)}</td>
-                    <td>{item.vessel || "—"}</td>
-                    <td>
-                      <button type="button" className="ghost" onClick={() => void unwatch(item.id)}>
-                        Xóa
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <WatchPanel
+          items={watchlist}
+          refreshing={watchRefreshing}
+          onRefresh={() => void refreshWatch()}
+          onOpen={(nextQuery, nextKind, nextCarrier) => {
+            setTab("shipment");
+            void search(nextQuery, nextKind, nextCarrier);
+          }}
+          onRemove={(id) => void unwatch(id)}
+        />
       )}
 
       {tab === "shipment" && (
@@ -358,7 +338,7 @@ export function TrackerApp() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Container, bill, hoặc MMSI 9 số (AIS live)"
+              placeholder="Container, bill, MMSI, hoặc tên tàu (Ever Given…)"
               autoComplete="off"
               spellCheck={false}
             />
@@ -377,12 +357,18 @@ export function TrackerApp() {
         </form>
 
         <div className="hints">
+          <span>Tàu theo tên (AIS):</span>
+          {KNOWN_VESSELS.map((ship) => (
+            <button key={ship.mmsi} type="button" onClick={() => void search(ship.name, "vessel", "")}>
+              {ship.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="hints">
           <span>Muốn xem giao diện thôi:</span>
           <button type="button" onClick={() => void search("MSKU3900520", "container", "", true)}>
             Xem mẫu (không live)
-          </button>
-          <button type="button" onClick={() => void search("353136000", "vessel", "")}>
-            Thử MMSI Ever Given
           </button>
         </div>
 
@@ -397,6 +383,15 @@ export function TrackerApp() {
           </div>
         )}
       </section>
+
+      <BulkSearch
+        keys={payloadKeys()}
+        onOpen={(nextQuery) => void search(nextQuery, "auto", "")}
+        onWatchlist={(items) => {
+          setWatchlist(items);
+          setTab("watch");
+        }}
+      />
 
       {response?.ok && <ResultView result={response.result} demo={response.demo} onWatch={() => void watchCurrent()} />}
 
