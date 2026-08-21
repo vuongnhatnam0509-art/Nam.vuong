@@ -19,16 +19,16 @@ export function TrackerApp() {
   const [carrier, setCarrier] = useState(params.get("carrier") ?? "");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<TrackResponse | null>(null);
-  const [history, setHistory] = useState<string[]>([]);
-
-  useEffect(() => {
+  const [history, setHistory] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
     try {
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      if (Array.isArray(stored)) setHistory(stored.slice(0, 8).map(String));
+      if (Array.isArray(stored)) return stored.slice(0, 8).map(String);
     } catch {
-      setHistory([]);
+      return [];
     }
-  }, []);
+    return [];
+  });
 
   useEffect(() => {
     const initial = params.get("q");
