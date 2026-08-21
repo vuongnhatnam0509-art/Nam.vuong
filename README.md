@@ -12,6 +12,8 @@ Paste **số container / bill / MMSI tàu** → app **gọi API live**. Không c
 | **JSONCargo** | [jsoncargo.com](https://jsoncargo.com) | Có — REST | Đổi tên/IMO tàu → MMSI; container | Trả phí |
 | tracktrace (`dhruvkar/tracktrace`) | GitHub 404 | Không | Scrape web hãng — đã chết vì Cloudflare | — |
 
+**MMSI là gì?** Mã nhận dạng radio AIS của tàu, đúng 9 chữ số (Ever Given = `353136000`). Khác số container và khác IMO (7 số). AISStream chỉ lọc theo MMSI — app có sổ tên→MMSI (tự nhớ sau khi bạn tra một lần) và nút «MMSI là gì?» để lưu tàu công ty hay đi.
+
 **AISStream không thay được tracking container.** AIS là tín hiệu radio của tàu, không biết số container trên tàu. Muốn ngày Gate in / Loaded / ETD / ETA / Discharged thì cần SeaRates hoặc ShipsGo.
 
 Luồng gợi ý:
@@ -51,7 +53,7 @@ Hoặc lúc dev: `npm run dev` rồi mở http://localhost:3000
 ## Dùng hàng ngày
 
 1. Tab **Shipment**: paste số container hoặc bill → bảng ngày giờ + timeline (**cần SeaRates/ShipsGo**)
-2. Tàu: paste **MMSI** hoặc tên trong bảng công khai (Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong) → AISStream live; **giữ trang mở** để vị trí cập nhật
+2. Tàu: paste **tên** (nếu đã có trong sổ), **IMO**, hoặc **MMSI 9 số**. MMSI là mã radio AIS của tàu (không phải số container). Tra MMSI trên VesselFinder rồi lưu «tên → MMSI» trong app. Giữ trang mở để AIS cập nhật.
 3. **Danh sách hàng loạt**: dán nhiều số hoặc tải CSV/Excel (tối đa 40) → tra một lúc, có thể «Theo dõi» cả list
 4. Tab **Theo dõi**: tự làm mới mỗi 3 phút, cờ đỏ nếu ETA lùi ≥12 giờ hoặc ETA đã quá hạn
 5. Tab **Lịch tàu**: POL→POD (**cần SeaRates**)

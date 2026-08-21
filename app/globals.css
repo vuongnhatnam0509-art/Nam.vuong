@@ -415,6 +415,88 @@ tr.delayed td {
   background: rgba(240, 164, 160, 0.08);
 }
 
+.suggest-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.suggest-wrap input {
+  width: 100%;
+}
+
+.suggest-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 56px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #07141f;
+}
+
+.suggest-list button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: transparent;
+  color: var(--foam);
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.suggest-list span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mmsi-guide {
+  margin-top: 12px;
+}
+
+.mmsi-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.mmsi-box ul {
+  margin: 8px 0 12px;
+  padding-left: 18px;
+}
+
+.mmsi-form {
+  display: grid;
+  grid-template-columns: 1fr 140px 160px;
+  gap: 8px;
+}
+
+.mmsi-form input,
+.mmsi-form button {
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #07141f;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.mmsi-form button {
+  background: var(--sand);
+  color: #1b1408;
+  font-weight: 700;
+  border: 0;
+}
+
 .file-btn {
   display: inline-flex;
   align-items: center;
@@ -470,6 +552,7 @@ td {
 }
 
 @media (max-width: 900px) {
+  .mmsi-form,
   .date-board,
   .schedule-form,
   .search-row,

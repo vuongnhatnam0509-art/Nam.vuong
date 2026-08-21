@@ -9,8 +9,8 @@ describe("detectQuery", () => {
     expect(detected.carrier?.code).toBe("MAERSK");
   });
 
-  it("detects a vessel name", () => {
-    expect(detectQuery("Maersk Essen").kind).toBe("vessel");
+  it("treats a known vessel name without spaces as a vessel, not a bill", () => {
+    expect(detectQuery("EVERGIVEN").kind).toBe("vessel");
   });
 
   it("detects IMO numbers", () => {
