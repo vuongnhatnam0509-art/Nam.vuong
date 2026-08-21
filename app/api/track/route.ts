@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     query: searchParams.get("q") ?? searchParams.get("query") ?? "",
     kind: parseKind(searchParams.get("kind")),
     carrier: searchParams.get("carrier") ?? undefined,
+    demo: searchParams.get("demo") === "1" || searchParams.get("demo") === "true",
   });
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
@@ -32,12 +33,14 @@ export async function POST(request: NextRequest) {
     q?: string;
     kind?: string;
     carrier?: string;
-    keys?: { searates?: string; shipsgo?: string; jsoncargo?: string };
+    demo?: boolean;
+    keys?: { searates?: string; shipsgo?: string; jsoncargo?: string; aisstream?: string };
   };
   const result = await trackShipment({
     query: body.query ?? body.q ?? "",
     kind: parseKind(body.kind ?? null),
     carrier: body.carrier,
+    demo: body.demo === true,
     keys: body.keys,
   });
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });

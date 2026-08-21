@@ -18,6 +18,11 @@ describe("detectQuery", () => {
     expect(detectQuery("9811000").kind).toBe("vessel");
   });
 
+  it("detects MMSI numbers as vessels", () => {
+    expect(detectQuery("353136000").kind).toBe("vessel");
+    expect(detectQuery("353136000").normalized).toBe("353136000");
+  });
+
   it("detects bill of lading numbers", () => {
     const detected = detectQuery("MAEU918273645");
     expect(detected.kind).toBe("bl");

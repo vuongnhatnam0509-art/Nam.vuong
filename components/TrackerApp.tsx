@@ -14,10 +14,10 @@ const KEYS_KEY = "ocean-track-keys";
 
 type KindOption = "auto" | QueryKind;
 type AppTab = "shipment" | "schedule" | "watch";
-type SavedKeys = { searates: string; shipsgo: string; jsoncargo: string };
+type SavedKeys = { searates: string; shipsgo: string; jsoncargo: string; aisstream: string };
 
 function readKeys(): SavedKeys {
-  const empty = { searates: "", shipsgo: "", jsoncargo: "" };
+  const empty = { searates: "", shipsgo: "", jsoncargo: "", aisstream: "" };
   if (typeof window === "undefined") return empty;
   try {
     const stored = JSON.parse(localStorage.getItem(KEYS_KEY) || "{}") as Partial<SavedKeys>;
@@ -25,6 +25,7 @@ function readKeys(): SavedKeys {
       searates: stored.searates ?? "",
       shipsgo: stored.shipsgo ?? "",
       jsoncargo: stored.jsoncargo ?? "",
+      aisstream: stored.aisstream ?? "",
     };
   } catch {
     return empty;
@@ -69,24 +70,30 @@ export function TrackerApp() {
   useEffect(() => {
     const initial = params.get("q");
     if (initial) {
-      void search(initial, (params.get("kind") as KindOption) || "auto", params.get("carrier") ?? "");
+      void search(
+        initial,
+        (params.get("kind") as KindOption) || "auto",
+        params.get("carrier") ?? "",
+        params.get("demo") === "1",
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const hasLive = Boolean(keys.searates || keys.shipsgo || keys.jsoncargo || envProviders.length);
+  const hasLive = Boolean(keys.searates || keys.shipsgo || keys.jsoncargo || keys.aisstream || envProviders.length);
 
   const providersLabel = useMemo(() => {
-    if (hasLive) return "Visibility nội bộ · paste số là ra lịch";
-    return "Chưa gắn API — admin dán SeaRates key một lần";
-  }, [hasLive]);
+    const names = [...new Set([...envProviders, ...(keys.aisstream ? ["AISStream"] : []), ...(keys.searates ? ["SeaRates"] : []), ...(keys.jsoncargo ? ["JSONCargo"] : []), ...(keys.shipsgo ? ["ShipsGo"] : [])])];
+    if (names.length) return `Live: ${names.join(" · ")}`;
+    return "Chưa gắn API — app không bịa dữ liệu";
+  }, [envProviders, keys]);
 
   function saveKeys(next: SavedKeys) {
     setKeys(next);
     localStorage.setItem(KEYS_KEY, JSON.stringify(next));
   }
 
-  async function search(nextQuery: string, nextKind: KindOption, nextCarrier: string) {
+  async function search(nextQuery: string, nextKind: KindOption, nextCarrier: string, demo = false) {
     const q = nextQuery.trim();
     if (!q) return;
     setLoading(true);
@@ -97,12 +104,14 @@ export function TrackerApp() {
     const searchParams = new URLSearchParams({ q });
     if (nextKind !== "auto") searchParams.set("kind", nextKind);
     if (nextCarrier) searchParams.set("carrier", nextCarrier);
+    if (demo) searchParams.set("demo", "1");
     router.replace(`/?${searchParams.toString()}`);
 
     const payloadKeys = {
       searates: keys.searates || undefined,
       shipsgo: keys.shipsgo || undefined,
       jsoncargo: keys.jsoncargo || undefined,
+      aisstream: keys.aisstream || undefined,
     };
 
     try {
@@ -113,6 +122,7 @@ export function TrackerApp() {
           query: q,
           kind: nextKind,
           carrier: nextCarrier || undefined,
+          demo,
           keys: payloadKeys,
         }),
       });
@@ -178,7 +188,7 @@ export function TrackerApp() {
       <header className="topbar">
         <div>
           <p className="logo">OceanTrack</p>
-          <p className="tag">Visibility nội bộ — paste số shipment, ra ngày giờ lịch tàu</p>
+          <p className="tag">Gọi API live — container/B/L qua SeaRates, vị trí tàu qua AISStream</p>
         </div>
         <div className="top-actions">
           <p className="provider-note">{providersLabel}</p>
@@ -190,18 +200,33 @@ export function TrackerApp() {
 
       {settingsOpen && (
         <section className="search-card">
-          <h3 className="settings-title">Admin dán key một lần — cả công ty dùng chung</h3>
+          <h3 className="settings-title">Admin dán key — app mới gọi API live</h3>
           <p className="muted">
-            Nên ghi key vào <code>.env.local</code> trên máy chủ nội bộ (<code>SEARATES_API_KEY</code>) để mọi phòng
-            ban mở cùng URL là có dữ liệu live, không cần mỗi người dán key. Hoặc dán tại đây trên máy này.
-            Đăng ký:{" "}
-            <a href="https://www.searates.com/reference/tracking" target="_blank" rel="noreferrer">
-              SeaRates Tracking + Schedules
-            </a>
-            .
+            Không có key thì <strong>không có dữ liệu</strong> (trừ nút «Xem mẫu»). Nên ghi key vào{" "}
+            <code>.env.local</code> trên máy chủ nội bộ để mọi phòng mở cùng URL là live.
           </p>
           <label className="field">
-            SeaRates API key
+            AISStream API key — vị trí tàu live (miễn phí)
+            <input
+              type="password"
+              value={keys.aisstream}
+              onChange={(event) => saveKeys({ ...keys, aisstream: event.target.value.trim() })}
+              placeholder="aisstream.io — đăng nhập GitHub"
+            />
+          </label>
+          <p className="muted">
+            Repo:{" "}
+            <a href="https://github.com/aisstream/aisstream" target="_blank" rel="noreferrer">
+              aisstream/aisstream
+            </a>
+            . Tạo key:{" "}
+            <a href="https://aisstream.io" target="_blank" rel="noreferrer">
+              aisstream.io
+            </a>
+            . Chỉ lọc theo <strong>MMSI 9 số</strong> — không tra container/B/L.
+          </p>
+          <label className="field">
+            SeaRates API key — container + bill + lịch tàu (trả phí)
             <input
               type="password"
               value={keys.searates}
@@ -210,7 +235,7 @@ export function TrackerApp() {
             />
           </label>
           <label className="field">
-            ShipsGo auth code
+            ShipsGo auth code — container/B/L
             <input
               type="password"
               value={keys.shipsgo}
@@ -219,7 +244,7 @@ export function TrackerApp() {
             />
           </label>
           <label className="field">
-            JSONCargo API key (tìm tàu theo tên/IMO)
+            JSONCargo API key — đổi tên/IMO tàu → MMSI
             <input
               type="password"
               value={keys.jsoncargo}
@@ -232,8 +257,8 @@ export function TrackerApp() {
 
       {!hasLive && (
         <div className="banner error">
-          Chưa có API key nên chưa lấy được dữ liệu live. Admin dán SeaRates key trong Cài đặt hoặc file
-          <code> .env.local</code>, rồi các phòng chỉ việc paste số shipment.
+          Chưa có API key nên chưa lấy được dữ liệu live. Admin dán AISStream (tàu) và/hoặc SeaRates (container/B/L)
+          trong Cài đặt hoặc file <code>.env.local</code>. App sẽ không trả lịch trình giả.
         </div>
       )}
 
@@ -333,7 +358,7 @@ export function TrackerApp() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Paste số container, bill hoặc IMO/tên tàu"
+              placeholder="Container, bill, hoặc MMSI 9 số (AIS live)"
               autoComplete="off"
               spellCheck={false}
             />
@@ -346,10 +371,20 @@ export function TrackerApp() {
               ))}
             </select>
             <button type="submit" disabled={loading}>
-              {loading ? "Đang tìm…" : "Tra cứu"}
+              {loading ? "Đang gọi API…" : "Tra cứu live"}
             </button>
           </div>
         </form>
+
+        <div className="hints">
+          <span>Muốn xem giao diện thôi:</span>
+          <button type="button" onClick={() => void search("MSKU3900520", "container", "", true)}>
+            Xem mẫu (không live)
+          </button>
+          <button type="button" onClick={() => void search("353136000", "vessel", "")}>
+            Thử MMSI Ever Given
+          </button>
+        </div>
 
         {history.length > 0 && (
           <div className="hints history">

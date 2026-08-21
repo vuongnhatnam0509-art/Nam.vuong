@@ -49,12 +49,13 @@ export type VesselInfo = {
   navStatus?: string | null;
   lastPositionAt?: string | null;
   eta?: string | null;
+  aisLive?: boolean;
 };
 
 export type TrackingResult = {
   kind: QueryKind;
   query: string;
-  source: "searates" | "jsoncargo" | "shipsgo" | "demo";
+  source: "searates" | "jsoncargo" | "shipsgo" | "aisstream" | "demo";
   carrier: Carrier | null;
   containerNumber?: string | null;
   billOfLading?: string | null;
@@ -99,10 +100,13 @@ export type TrackRequest = {
   query: string;
   kind?: "auto" | QueryKind;
   carrier?: string;
+  /** Only return canned samples when the user explicitly asks. Never auto-demo. */
+  demo?: boolean;
   keys?: {
     searates?: string;
     shipsgo?: string;
     jsoncargo?: string;
+    aisstream?: string;
   };
 };
 

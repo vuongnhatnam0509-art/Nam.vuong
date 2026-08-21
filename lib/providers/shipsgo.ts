@@ -138,6 +138,8 @@ function toResult(
     vessel: {
       name: str(pick(data, ["vessel", "Vessel", "vessel_name"])) ?? "Unknown",
       voyage: str(pick(data, ["voyage", "Voyage"])),
+      mmsi: str(pick(data, ["mmsi", "MMSI"])),
+      imo: str(pick(data, ["imo", "IMO"])),
       lat: num(pick(data, ["latitude", "Latitude", "lat"])),
       lng: num(pick(data, ["longitude", "Longitude", "lng", "lon"])),
     },

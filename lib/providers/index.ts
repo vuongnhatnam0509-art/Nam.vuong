@@ -1,6 +1,11 @@
 import { officialTrackingUrls } from "../carriers";
-import { detectQuery } from "../detect";
-import type { TrackRequest, TrackResponse } from "../types";
+import { detectQuery, isMmsiNumber } from "../detect";
+import type { TrackRequest, TrackResponse, TrackingResult } from "../types";
+import {
+  enrichWithAisStream,
+  hasAisStream,
+  trackVesselAisStream,
+} from "./aisstream";
 import { getDemoResult } from "./demo";
 import {
   hasJsonCargo,
@@ -8,9 +13,27 @@ import {
   trackContainerJsonCargo,
   trackVesselJsonCargo,
 } from "./jsoncargo";
+import { knownMmsi } from "./known-mmsi";
 import { liveProviderNames } from "./keys";
 import { hasSeaRates, trackWithSeaRates } from "./searates";
 import { hasShipsGo, trackWithShipsGo } from "./shipsgo";
+
+function fail(
+  error: string,
+  code: string,
+  providers: string[],
+  detected: ReturnType<typeof detectQuery>,
+  urls: { label: string; url: string }[],
+): TrackResponse {
+  return {
+    ok: false,
+    error,
+    code,
+    detected,
+    officialUrls: urls,
+    liveProviders: providers,
+  };
+}
 
 export async function trackShipment(input: TrackRequest): Promise<TrackResponse> {
   const query = input.query?.trim() ?? "";
@@ -20,7 +43,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   if (!query) {
     return {
       ok: false,
-      error: "Nhập số container, số bill hoặc tên/IMO tàu.",
+      error: "Nhập số container, số bill hoặc MMSI/tên/IMO tàu.",
       code: "empty",
       officialUrls: [],
       liveProviders: providers,
@@ -35,46 +58,84 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   );
 
   if (detected.kind === "unknown") {
-    return {
-      ok: false,
-      error: "Không nhận diện được loại mã. Chọn Container, Bill of Lading hoặc Tàu.",
-      code: "undetected",
+    return fail(
+      "Không nhận diện được loại mã. Chọn Container, Bill of Lading hoặc Tàu.",
+      "undetected",
+      providers,
       detected,
-      officialUrls: urls,
-      liveProviders: providers,
-    };
+      urls,
+    );
+  }
+
+  if (input.demo) {
+    const demo = getDemoResult(detected.kind, detected.normalized);
+    if (demo) {
+      return { ok: true, result: demo, demo: true, liveProviders: providers };
+    }
+    return fail(
+      "Không có dữ liệu mẫu cho mã này. Mẫu chỉ có vài số cố định — không phải live API.",
+      "demo_not_found",
+      providers,
+      detected,
+      urls,
+    );
   }
 
   const errors: string[] = [];
 
   if (detected.kind === "vessel") {
+    const mmsi = knownMmsi(detected.normalized) ?? (isMmsiNumber(detected.normalized) ? detected.normalized : undefined);
+
+    if (hasAisStream(keys) && mmsi) {
+      try {
+        const result = await trackVesselAisStream(mmsi, keys);
+        return { ok: true, result, demo: false, liveProviders: providers };
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : "AISStream vessel error");
+      }
+    }
+
     if (hasJsonCargo(keys)) {
       try {
-        const result = await trackVesselJsonCargo(detected.normalized, keys);
+        const result = await enrichWithAisStream(
+          await trackVesselJsonCargo(detected.normalized, keys),
+          keys,
+        );
         return { ok: true, result, demo: false, liveProviders: providers };
       } catch (error) {
         errors.push(error instanceof Error ? error.message : "JSONCargo vessel error");
       }
     }
-    const demo = getDemoResult(detected.kind, detected.normalized);
-    if (demo && providers.length === 0) {
-      return { ok: true, result: demo, demo: true, liveProviders: providers };
+
+    if (hasAisStream(keys) && !mmsi) {
+      return fail(
+        "AISStream (aisstream.io) chỉ lọc theo MMSI 9 số, không theo tên tàu. Nhập MMSI (ví dụ Ever Given: 353136000) hoặc gắn JSONCargo để đổi tên/IMO → MMSI.",
+        "need_mmsi",
+        providers,
+        detected,
+        urls,
+      );
     }
-    return {
-      ok: false,
-      error:
-        errors[0] ||
-        "Tìm tàu theo tên/IMO cần JSONCargo API key. Container và bill dùng SeaRates hoặc ShipsGo.",
-      code: providers.length ? "not_found" : "no_provider",
+
+    return fail(
+      errors[0] ||
+        "Chưa có nguồn live cho tàu. Dán AISSTREAM_API_KEY (miễn phí tại aisstream.io, đăng nhập GitHub) rồi nhập MMSI 9 số. Tìm theo tên/IMO cần JSONCargo. App không trả dữ liệu mẫu trừ khi bấm «Xem mẫu».",
+      providers.length ? "not_found" : "no_provider",
+      providers,
       detected,
-      officialUrls: urls,
-      liveProviders: providers,
-    };
+      urls,
+    );
+  }
+
+  async function liveOrThrow(result: TrackingResult) {
+    return enrichWithAisStream(result, keys);
   }
 
   if (hasSeaRates(keys)) {
     try {
-      const result = await trackWithSeaRates(detected.kind, detected.normalized, detected.carrier, keys);
+      const result = await liveOrThrow(
+        await trackWithSeaRates(detected.kind, detected.normalized, detected.carrier, keys),
+      );
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "SeaRates error");
@@ -83,10 +144,11 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
 
   if (hasJsonCargo(keys)) {
     try {
-      const result =
+      const result = await liveOrThrow(
         detected.kind === "bl"
           ? await trackBillJsonCargo(detected.normalized, detected.carrier, keys)
-          : await trackContainerJsonCargo(detected.normalized, detected.carrier, keys);
+          : await trackContainerJsonCargo(detected.normalized, detected.carrier, keys),
+      );
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "JSONCargo error");
@@ -95,26 +157,31 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
 
   if (hasShipsGo(keys)) {
     try {
-      const result = await trackWithShipsGo(detected.kind, detected.normalized, detected.carrier, keys);
+      const result = await liveOrThrow(
+        await trackWithShipsGo(detected.kind, detected.normalized, detected.carrier, keys),
+      );
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "ShipsGo error");
     }
   }
 
-  const demo = getDemoResult(detected.kind, detected.normalized);
-  if (demo && providers.length === 0) {
-    return { ok: true, result: demo, demo: true, liveProviders: providers };
+  if (hasAisStream(keys) && providers.length === 1) {
+    return fail(
+      "AISStream chỉ cho vị trí tàu theo MMSI, không tra được số container hay bill of lading. Cần SeaRates hoặc ShipsGo key cho shipment live.",
+      "ais_not_for_container",
+      providers,
+      detected,
+      urls,
+    );
   }
 
-  return {
-    ok: false,
-    error:
-      errors[0] ||
-      "Chưa có API key. Mở Cài đặt, dán SeaRates hoặc ShipsGo key một lần — sau đó chỉ việc paste số container/bill.",
-    code: providers.length ? "not_found" : "no_provider",
+  return fail(
+    errors[0] ||
+      "Chưa có API live cho container/B/L. Dán SeaRates hoặc ShipsGo key trong Cài đặt / .env.local. App không bịa lịch trình — dữ liệu mẫu chỉ hiện khi bấm «Xem mẫu».",
+    providers.length ? "not_found" : "no_provider",
+    providers,
     detected,
-    officialUrls: urls,
-    liveProviders: providers,
-  };
+    urls,
+  );
 }

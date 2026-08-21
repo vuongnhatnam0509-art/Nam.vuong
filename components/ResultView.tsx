@@ -18,12 +18,19 @@ export function ResultView({
 
   return (
     <section className="result">
-      {demo ? (
+      {demo || result.source === "demo" ? (
         <div className="banner demo">
-          Đang hiển thị <strong>dữ liệu mẫu</strong>. Gắn SeaRates/ShipsGo API key để lấy lịch live từ hãng.
+          Đây là <strong>dữ liệu mẫu có sẵn</strong> — không gọi API live. Bấm Tra cứu bình thường (không «Xem mẫu»)
+          sau khi dán key mới ra lịch thật.
         </div>
       ) : (
-        <div className="banner live">Nguồn: {result.source === "searates" ? "SeaRates (hãng tàu live)" : result.source === "jsoncargo" ? "JSONCargo" : "ShipsGo"}</div>
+        <div className="banner live">
+          {result.source === "aisstream" && "LIVE vị trí tàu — AISStream (wss://stream.aisstream.io)"}
+          {result.source === "searates" && "LIVE hãng tàu — SeaRates"}
+          {result.source === "jsoncargo" && "LIVE — JSONCargo"}
+          {result.source === "shipsgo" && "LIVE — ShipsGo"}
+          {result.vessel?.aisLive && result.source !== "aisstream" ? " · vị trí tàu bổ sung từ AISStream" : ""}
+        </div>
       )}
 
       <header className="hero-card">
@@ -102,6 +109,12 @@ export function ResultView({
                   <li>
                     <span>AIS lúc</span>
                     <strong>{formatDateTime(vessel.lastPositionAt)}</strong>
+                  </li>
+                )}
+                {vessel.aisLive && (
+                  <li>
+                    <span>Nguồn vị trí</span>
+                    <strong>AISStream live</strong>
                   </li>
                 )}
               </ul>

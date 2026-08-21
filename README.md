@@ -1,8 +1,25 @@
-# OceanTrack — visibility nội bộ (kiểu Project44)
+# OceanTrack — visibility nội bộ
 
-Paste **số container / bill / tàu** → ra **ngày giờ** (ETD/ATD, ETA/ATA, gate in, loaded, discharged). Có tab **Lịch tàu** POL→POD.
+Paste **số container / bill / MMSI tàu** → app **gọi API live**. Không có key thì **không có dữ liệu** (trừ nút «Xem mẫu»).
 
-Hãng tàu không mở JSON public. App lấy live qua **SeaRates** (tracking + schedules), giống các nền tảng visibility.
+## Dùng repo nào cho live?
+
+| Nguồn | Repo / docs | Live? | Làm được gì | Key |
+|---|---|---|---|---|
+| **AISStream** | [github.com/aisstream/aisstream](https://github.com/aisstream/aisstream) · [aisstream.io](https://aisstream.io) | Có — WebSocket `wss://stream.aisstream.io/v0/stream` | Vị trí tàu AIS (lat/lng, tốc độ, tên) theo **MMSI 9 số** | Miễn phí, đăng nhập GitHub |
+| **SeaRates** | [tracking API](https://www.searates.com/reference/tracking) | Có — REST | Container, bill of lading, lịch tàu POL→POD | Trả phí / trial |
+| **ShipsGo** | [shipsgo.com](https://shipsgo.com) | Có — REST | Container / B/L | Trả phí |
+| **JSONCargo** | [jsoncargo.com](https://jsoncargo.com) | Có — REST | Đổi tên/IMO tàu → MMSI; container | Trả phí |
+| tracktrace (`dhruvkar/tracktrace`) | GitHub 404 | Không | Scrape web hãng — đã chết vì Cloudflare | — |
+
+**AISStream không thay được tracking container.** AIS là tín hiệu radio của tàu, không biết số container trên tàu. Muốn ngày Gate in / Loaded / ETD / ETA / Discharged thì cần SeaRates hoặc ShipsGo.
+
+Luồng gợi ý:
+
+1. Tạo key miễn phí tại [aisstream.io](https://aisstream.io) → `AISSTREAM_API_KEY`
+2. (Shipment) tạo key SeaRates → `SEARATES_API_KEY`
+3. Tab Tàu: paste MMSI (ví dụ Ever Given `353136000`) → vị trí live từ AISStream
+4. Tab Shipment: paste số container/bill → lịch live từ SeaRates; nếu có MMSI tàu thì app bổ sung vị trí AISStream
 
 ## Máy công ty (Cursor bị chặn)
 
@@ -16,10 +33,9 @@ npm install
 Admin tạo file `.env.local` (không commit):
 
 ```
+AISSTREAM_API_KEY=điền_key
 SEARATES_API_KEY=điền_key
 ```
-
-Đăng ký key: https://www.searates.com/reference/tracking (tracking) và schedules cùng tài khoản nếu có.
 
 Chạy cho cả phòng ban trên LAN:
 
@@ -28,15 +44,17 @@ npm run build
 npm run start
 ```
 
-Máy khác mở `http://IP-MAY-CHU:3000` (cùng mạng). Mọi người **chỉ paste số** — không cần Cursor, không cần dán key.
+Máy khác mở `http://IP-MAY-CHU:3000` (cùng mạng). Cần mạng ra được `stream.aisstream.io` (WebSocket) và `tracking.searates.com`.
 
 Hoặc lúc dev: `npm run dev` rồi mở http://localhost:3000
 
 ## Dùng hàng ngày
 
-1. Tab **Shipment**: paste số container hoặc bill → bảng ngày giờ + timeline
-2. Bấm **Theo dõi** để các phòng cùng thấy trên tab Theo dõi
-3. Tab **Lịch tàu**: chọn cảng đi/đến (ví dụ VNSGN → NLRTM) → ETD/ETA mới nhất
+1. Tab **Shipment**: paste số container hoặc bill → bảng ngày giờ + timeline (**cần SeaRates/ShipsGo**)
+2. Tab **Tàu**: paste MMSI 9 số → vị trí AIS live (**cần AISStream**)
+3. Bấm **Theo dõi** để các phòng cùng thấy
+4. Tab **Lịch tàu**: POL→POD (**cần SeaRates**)
+5. **Xem mẫu** chỉ để xem giao diện — banner vàng = không phải live
 
 ## GitHub
 

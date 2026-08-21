@@ -11,6 +11,10 @@ export type DetectedQuery = {
 const IMO_RE = /^(?:IMO\s*)?(\d{7})$/i;
 const MMSI_RE = /^\d{9}$/;
 
+export function isMmsiNumber(raw: string): boolean {
+  return MMSI_RE.test(raw.trim().replace(/\s/g, ""));
+}
+
 export function isImoNumber(raw: string): boolean {
   const match = raw.trim().match(IMO_RE);
   if (!match) return false;
