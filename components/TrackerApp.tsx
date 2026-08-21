@@ -3,10 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CARRIERS } from "@/lib/carriers";
-import { KNOWN_VESSELS } from "@/lib/providers/known-mmsi";
 import type { QueryKind, TrackResponse, WatchItem } from "@/lib/types";
 import { watchFieldsFromResult } from "@/lib/watch-from-result";
 import { BulkSearch } from "./BulkSearch";
+import { MmsiGuide } from "./MmsiGuide";
 import { ResultView } from "./ResultView";
 import { ScheduleBoard } from "./ScheduleBoard";
 import { WatchPanel } from "./WatchPanel";
@@ -16,6 +16,7 @@ const KEYS_KEY = "ocean-track-keys";
 
 type KindOption = "auto" | QueryKind;
 type AppTab = "shipment" | "schedule" | "watch";
+type KnownHint = { name: string; mmsi: string; imo?: string | null };
 type SavedKeys = { searates: string; shipsgo: string; jsoncargo: string; aisstream: string };
 
 function readKeys(): SavedKeys {
@@ -46,6 +47,8 @@ export function TrackerApp() {
   const [tab, setTab] = useState<AppTab>("shipment");
   const [watchlist, setWatchlist] = useState<WatchItem[]>([]);
   const [watchRefreshing, setWatchRefreshing] = useState(false);
+  const [vesselHints, setVesselHints] = useState<KnownHint[]>([]);
+  const [suggestions, setSuggestions] = useState<KnownHint[]>([]);
   const [keys, setKeys] = useState<SavedKeys>(readKeys);
   const [envProviders, setEnvProviders] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>(() => {
@@ -64,11 +67,30 @@ export function TrackerApp() {
       .then((res) => res.json())
       .then((data: { liveProviders?: string[] }) => setEnvProviders(data.liveProviders ?? []))
       .catch(() => undefined);
+    void fetch("/api/vessels")
+      .then((res) => res.json())
+      .then((data: { items?: KnownHint[] }) => setVesselHints(data.items ?? []))
+      .catch(() => undefined);
     void fetch("/api/watchlist")
       .then((res) => res.json())
       .then((data: { items?: WatchItem[] }) => setWatchlist(data.items ?? []))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void fetch(`/api/vessels?q=${encodeURIComponent(q)}`)
+        .then((res) => res.json())
+        .then((data: { items?: KnownHint[] }) => setSuggestions(data.items ?? []))
+        .catch(() => undefined);
+    }, 180);
+    return () => window.clearTimeout(handle);
+  }, [query]);
 
   useEffect(() => {
     const initial = params.get("q");
@@ -335,13 +357,34 @@ export function TrackerApp() {
           </div>
 
           <div className="search-row">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Container, bill, MMSI, hoặc tên tàu (Ever Given…)"
-              autoComplete="off"
-              spellCheck={false}
-            />
+            <div className="suggest-wrap">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Container, bill, tên tàu, IMO, hoặc MMSI 9 số"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {suggestions.length > 0 && (
+                <ul className="suggest-list">
+                  {suggestions.map((item) => (
+                    <li key={`${item.mmsi}-${item.name}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery(item.name);
+                          setSuggestions([]);
+                          void search(item.mmsi, "vessel", "");
+                        }}
+                      >
+                        <strong>{item.name}</strong>
+                        <span>MMSI {item.mmsi}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <select value={carrier} onChange={(event) => setCarrier(event.target.value)}>
               <option value="">Hãng tàu (tự nhận)</option>
               {CARRIERS.map((item) => (
@@ -356,10 +399,17 @@ export function TrackerApp() {
           </div>
         </form>
 
+        <MmsiGuide
+          onSaved={(name, mmsi) => {
+            setVesselHints((current) => [{ name: name.toUpperCase(), mmsi }, ...current]);
+            void search(mmsi, "vessel", "");
+          }}
+        />
+
         <div className="hints">
           <span>Tàu theo tên (AIS):</span>
-          {KNOWN_VESSELS.map((ship) => (
-            <button key={ship.mmsi} type="button" onClick={() => void search(ship.name, "vessel", "")}>
+          {vesselHints.slice(0, 6).map((ship) => (
+            <button key={`${ship.mmsi}-${ship.name}`} type="button" onClick={() => void search(ship.name, "vessel", "")}>
               {ship.name}
             </button>
           ))}
@@ -403,6 +453,15 @@ export function TrackerApp() {
               Đã nhận: {response.detected.kind}
               {response.detected.carrier ? ` · ${response.detected.carrier.name}` : ""} ·{" "}
               {response.detected.normalized}
+            </p>
+          )}
+          {response.code === "need_mmsi" && (
+            <p className="muted">
+              MMSI = mã AIS 9 số của tàu. Mở{" "}
+              <a href={`https://www.vesselfinder.com/vessels?name=${encodeURIComponent(response.detected?.normalized || query)}`} target="_blank" rel="noreferrer">
+                VesselFinder
+              </a>
+              , copy MMSI, rồi lưu trong «MMSI là gì?».
             </p>
           )}
           {response.officialUrls.length > 0 && (

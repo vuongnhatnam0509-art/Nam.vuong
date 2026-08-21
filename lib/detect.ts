@@ -1,5 +1,6 @@
 import { getCarrierByCode, getCarrierByPrefix } from "./carriers";
 import { isContainerNumberShape, normalizeContainerNumber } from "./iso6346";
+import { lookupMmsi } from "./providers/known-mmsi";
 import type { Carrier, QueryKind } from "./types";
 
 export type DetectedQuery = {
@@ -85,6 +86,10 @@ export function detectQuery(
   }
 
   if (looksLikeVesselName(trimmed)) {
+    return { kind: "vessel", normalized: trimmed.toUpperCase(), carrier: carrierHint };
+  }
+
+  if (lookupMmsi(trimmed) || lookupMmsi(trimmed.toUpperCase())) {
     return { kind: "vessel", normalized: trimmed.toUpperCase(), carrier: carrierHint };
   }
 

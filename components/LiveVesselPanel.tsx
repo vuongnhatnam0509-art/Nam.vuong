@@ -108,7 +108,7 @@ export function LiveVesselPanel({ result }: { result: TrackingResult }) {
         )}
         {vessel.mmsi && (
           <li>
-            <span>MMSI</span>
+                    <span>MMSI (mã AIS 9 số)</span>
             <strong>{vessel.mmsi}</strong>
           </li>
         )}

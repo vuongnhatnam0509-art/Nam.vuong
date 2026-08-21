@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAisEnvelope, finalizeAisPosition } from "./aisstream";
-import { knownMmsi } from "./known-mmsi";
+import { knownMmsi, suggestVessels } from "./known-mmsi";
 
 describe("AISStream parser", () => {
   it("reads a PositionReport envelope from aisstream.io", () => {
@@ -56,6 +56,12 @@ describe("AISStream parser", () => {
     expect(knownMmsi("9811000")).toBe("353136000");
     expect(knownMmsi("MAERSK ESSEN")).toBe("219210000");
     expect(knownMmsi("CMA CGM MARCO POLO")).toBe("311000923");
+    expect(knownMmsi("MSC GULSUN")).toBe("372003000");
     expect(knownMmsi("UNKNOWN STAR")).toBeUndefined();
+  });
+
+  it("suggests vessels by partial name", () => {
+    const hits = suggestVessels("ever");
+    expect(hits.some((row) => row.mmsi === "353136000")).toBe(true);
   });
 });

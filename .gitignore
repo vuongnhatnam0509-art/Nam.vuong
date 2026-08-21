@@ -37,6 +37,7 @@ yarn-error.log*
 
 # shared watchlist generated at runtime
 /data/watchlist.json
+/data/vessel-aliases.json
 
 # vercel
 .vercel

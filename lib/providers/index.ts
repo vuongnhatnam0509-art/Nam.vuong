@@ -13,8 +13,8 @@ import {
   trackContainerJsonCargo,
   trackVesselJsonCargo,
 } from "./jsoncargo";
-import { knownMmsi } from "./known-mmsi";
 import { liveProviderNames } from "./keys";
+import { rememberVessel, resolveMmsi } from "./vessel-directory";
 import { hasSeaRates, trackWithSeaRates } from "./searates";
 import { hasShipsGo, trackWithShipsGo } from "./shipsgo";
 
@@ -50,7 +50,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
     };
   }
 
-  const detected = detectQuery(query, input.kind, input.carrier);
+  let detected = detectQuery(query, input.kind, input.carrier);
   const urls = officialTrackingUrls(
     detected.normalized,
     detected.kind === "unknown" ? "container" : detected.kind,
@@ -83,12 +83,26 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
 
   const errors: string[] = [];
 
+  if (detected.kind !== "container") {
+    const mapped = await resolveMmsi(detected.normalized);
+    if (mapped && detected.kind !== "vessel") {
+      detected = { kind: "vessel", normalized: detected.normalized, carrier: detected.carrier };
+    }
+  }
+
   if (detected.kind === "vessel") {
-    const mmsi = knownMmsi(detected.normalized) ?? (isMmsiNumber(detected.normalized) ? detected.normalized : undefined);
+    const mmsi =
+      (await resolveMmsi(detected.normalized)) ??
+      (isMmsiNumber(detected.normalized) ? detected.normalized : undefined);
 
     if (hasAisStream(keys) && mmsi) {
       try {
         const result = await trackVesselAisStream(mmsi, keys);
+        void rememberVessel({
+          name: result.vessel?.name,
+          imo: result.vessel?.imo,
+          mmsi: result.vessel?.mmsi,
+        });
         return { ok: true, result, demo: false, liveProviders: providers };
       } catch (error) {
         errors.push(error instanceof Error ? error.message : "AISStream vessel error");
@@ -101,6 +115,11 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
           await trackVesselJsonCargo(detected.normalized, keys),
           keys,
         );
+        void rememberVessel({
+          name: result.vessel?.name,
+          imo: result.vessel?.imo,
+          mmsi: result.vessel?.mmsi,
+        });
         return { ok: true, result, demo: false, liveProviders: providers };
       } catch (error) {
         errors.push(error instanceof Error ? error.message : "JSONCargo vessel error");
@@ -109,7 +128,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
 
     if (hasAisStream(keys) && !mmsi) {
       return fail(
-        "AISStream lọc theo MMSI. Tên tàu chỉ tra được nếu có trong bảng công khai (Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong) hoặc JSONCargo. Hoặc nhập MMSI 9 số.",
+        "MMSI là mã AIS 9 số của tàu (ví dụ Ever Given: 353136000). AISStream chỉ lọc theo MMSI, không theo tên. Tra MMSI trên VesselFinder, dán vào đây, hoặc gắn tên→MMSI trong sổ tàu. Tên có sẵn: Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong, MSC Gulsun.",
         "need_mmsi",
         providers,
         detected,
@@ -128,14 +147,31 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   }
 
   async function liveOrThrow(result: TrackingResult) {
-    if (input.skipAisEnrich) return result;
-    return enrichWithAisStream(result, keys);
+    const next = input.skipAisEnrich ? result : await enrichWithAisStream(result, keys);
+    void rememberVessel({
+      name: next.vessel?.name,
+      imo: next.vessel?.imo,
+      mmsi: next.vessel?.mmsi,
+    });
+    return next;
   }
+
+  if (detected.kind !== "container" && detected.kind !== "bl") {
+    return fail(
+      errors[0] || "Không nhận diện được loại mã.",
+      "undetected",
+      providers,
+      detected,
+      urls,
+    );
+  }
+
+  const shipmentKind = detected.kind;
 
   if (hasSeaRates(keys)) {
     try {
       const result = await liveOrThrow(
-        await trackWithSeaRates(detected.kind, detected.normalized, detected.carrier, keys),
+        await trackWithSeaRates(shipmentKind, detected.normalized, detected.carrier, keys),
       );
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
@@ -146,7 +182,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   if (hasJsonCargo(keys)) {
     try {
       const result = await liveOrThrow(
-        detected.kind === "bl"
+        shipmentKind === "bl"
           ? await trackBillJsonCargo(detected.normalized, detected.carrier, keys)
           : await trackContainerJsonCargo(detected.normalized, detected.carrier, keys),
       );
@@ -159,7 +195,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
   if (hasShipsGo(keys)) {
     try {
       const result = await liveOrThrow(
-        await trackWithShipsGo(detected.kind, detected.normalized, detected.carrier, keys),
+        await trackWithShipsGo(shipmentKind, detected.normalized, detected.carrier, keys),
       );
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
