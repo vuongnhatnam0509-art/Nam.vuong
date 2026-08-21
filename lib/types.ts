@@ -49,12 +49,13 @@ export type VesselInfo = {
   navStatus?: string | null;
   lastPositionAt?: string | null;
   eta?: string | null;
+  aisLive?: boolean;
 };
 
 export type TrackingResult = {
   kind: QueryKind;
   query: string;
-  source: "jsoncargo" | "shipsgo" | "demo";
+  source: "searates" | "jsoncargo" | "shipsgo" | "aisstream" | "demo";
   carrier: Carrier | null;
   containerNumber?: string | null;
   billOfLading?: string | null;
@@ -78,10 +79,44 @@ export type TrackingResult = {
   lastUpdated?: string | null;
 };
 
+export type WatchItem = {
+  id: string;
+  query: string;
+  kind: QueryKind;
+  carrier?: string | null;
+  status?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  etd?: string | null;
+  eta?: string | null;
+  vessel?: string | null;
+  voyage?: string | null;
+  lastEvent?: string | null;
+  watchedAt: string;
+  refreshedAt?: string | null;
+  delayed?: boolean;
+  delayNote?: string | null;
+  delayHours?: number | null;
+  mmsi?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  error?: string | null;
+};
+
 export type TrackRequest = {
   query: string;
   kind?: "auto" | QueryKind;
   carrier?: string;
+  /** Only return canned samples when the user explicitly asks. Never auto-demo. */
+  demo?: boolean;
+  /** Skip AISStream enrich on container/BL (bulk + watchlist refresh). Vessel MMSI lookup still uses AIS. */
+  skipAisEnrich?: boolean;
+  keys?: {
+    searates?: string;
+    shipsgo?: string;
+    jsoncargo?: string;
+    aisstream?: string;
+  };
 };
 
 export type TrackResponse =

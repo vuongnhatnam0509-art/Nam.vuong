@@ -35,6 +35,9 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# shared watchlist generated at runtime
+/data/watchlist.json
+
 # vercel
 .vercel
 

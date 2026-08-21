@@ -15,9 +15,8 @@ const display = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "OceanTrack — theo dõi container, bill và tàu",
-  description:
-    "Tra cứu hành trình container, bill of lading và vị trí tàu theo các hãng tàu lớn.",
+  title: "OceanTrack — visibility shipment nội bộ",
+  description: "Paste số container/bill để theo dõi lịch tàu, ETD/ETA cho các phòng ban.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

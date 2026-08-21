@@ -1,20 +1,36 @@
-import { formatCoord, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { TrackingResult } from "@/lib/types";
-import { MapEmbed } from "./MapEmbed";
+import { DateBoard } from "./DateBoard";
+import { LiveVesselPanel } from "./LiveVesselPanel";
 import { Timeline } from "./Timeline";
 
-export function ResultView({ result, demo }: { result: TrackingResult; demo: boolean }) {
+export function ResultView({
+  result,
+  demo,
+  onWatch,
+}: {
+  result: TrackingResult;
+  demo: boolean;
+  onWatch?: () => void;
+}) {
   const vessel = result.vessel;
-  const hasMap = vessel?.lat != null && vessel?.lng != null;
 
   return (
     <section className="result">
-      {demo ? (
+      {demo || result.source === "demo" ? (
         <div className="banner demo">
-          Đang hiển thị <strong>dữ liệu mẫu</strong>. Gắn JSONCARGO_API_KEY hoặc SHIPSGO_AUTH_CODE để tra cứu thật.
+          Đây là <strong>dữ liệu mẫu có sẵn</strong> — không gọi API live. Bấm Tra cứu bình thường (không «Xem mẫu»)
+          sau khi dán key mới ra lịch thật.
         </div>
       ) : (
-        <div className="banner live">Nguồn: {result.source === "jsoncargo" ? "JSONCargo" : "ShipsGo"}</div>
+        <div className="banner live">
+          {result.source === "aisstream" && "LIVE vị trí tàu — AISStream (wss://stream.aisstream.io)"}
+          {result.source === "searates" && "LIVE hãng tàu — SeaRates"}
+          {result.source === "jsoncargo" && "LIVE — JSONCargo"}
+          {result.source === "shipsgo" && "LIVE — ShipsGo"}
+          {result.vessel?.aisLive && result.source !== "aisstream" ? " · vị trí tàu bổ sung từ AISStream" : ""}
+          {result.source === "aisstream" ? " · giữ trang này để AIS cập nhật" : ""}
+        </div>
       )}
 
       <header className="hero-card">
@@ -27,7 +43,13 @@ export function ResultView({ result, demo }: { result: TrackingResult; demo: boo
           </p>
           <h2>{result.containerNumber || result.billOfLading || vessel?.name || result.query}</h2>
           <p className="status">{result.status || "Đã tìm thấy"}</p>
+          {onWatch && (
+            <button type="button" className="ghost" onClick={onWatch}>
+              Theo dõi (các phòng cùng thấy)
+            </button>
+          )}
         </div>
+        <DateBoard result={result} />
         <div className="meta-grid">
           <Meta label="Đi" value={result.loadingPort || result.origin} />
           <Meta label="Đến" value={result.dischargingPort || result.destination} />
@@ -43,58 +65,7 @@ export function ResultView({ result, demo }: { result: TrackingResult; demo: boo
         </article>
         <article className="panel">
           <h3>Tàu</h3>
-          {vessel ? (
-            <>
-              <p className="vessel-name">{vessel.name}</p>
-              <ul className="kv">
-                {vessel.voyage && (
-                  <li>
-                    <span>Chuyến</span>
-                    <strong>{vessel.voyage}</strong>
-                  </li>
-                )}
-                {vessel.imo && (
-                  <li>
-                    <span>IMO</span>
-                    <strong>{vessel.imo}</strong>
-                  </li>
-                )}
-                {vessel.mmsi && (
-                  <li>
-                    <span>MMSI</span>
-                    <strong>{vessel.mmsi}</strong>
-                  </li>
-                )}
-                {formatCoord(vessel.lat, vessel.lng) && (
-                  <li>
-                    <span>Vị trí</span>
-                    <strong>{formatCoord(vessel.lat, vessel.lng)}</strong>
-                  </li>
-                )}
-                {vessel.speed != null && (
-                  <li>
-                    <span>Tốc độ</span>
-                    <strong>{vessel.speed} kn</strong>
-                  </li>
-                )}
-                {vessel.destination && (
-                  <li>
-                    <span>Điểm đến AIS</span>
-                    <strong>{vessel.destination}</strong>
-                  </li>
-                )}
-                {vessel.lastPositionAt && (
-                  <li>
-                    <span>AIS lúc</span>
-                    <strong>{formatDateTime(vessel.lastPositionAt)}</strong>
-                  </li>
-                )}
-              </ul>
-              {hasMap && <MapEmbed lat={vessel.lat!} lng={vessel.lng!} label={vessel.name} />}
-            </>
-          ) : (
-            <p className="muted">Chưa có thông tin tàu.</p>
-          )}
+          <LiveVesselPanel result={result} />
         </article>
       </div>
 

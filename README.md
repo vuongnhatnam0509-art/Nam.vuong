@@ -1,62 +1,66 @@
-# OceanTrack
+# OceanTrack — visibility nội bộ
 
-App web tra cứu **container**, **bill of lading** và **tàu** — nhập một mã, nhận hành trình, ETA và vị trí AIS.
+Paste **số container / bill / MMSI tàu** → app **gọi API live**. Không có key thì **không có dữ liệu** (trừ nút «Xem mẫu»).
 
-## Thư viện mở mà app dựa trên
+## Dùng repo nào cho live?
 
-Repo GitHub kinh điển cho việc này là [`dhruvkar/tracktrace`](https://github.com/dhruvkar/tracktrace) (PyPI: `tracktrace`): nhận số container + SCAC, gọi từng hãng tàu (MSC, CMA CGM, Hapag-Lloyd, ONE, …) rồi trả timeline thống nhất.
+| Nguồn | Repo / docs | Live? | Làm được gì | Key |
+|---|---|---|---|---|
+| **AISStream** | [github.com/aisstream/aisstream](https://github.com/aisstream/aisstream) · [aisstream.io](https://aisstream.io) | Có — WebSocket `wss://stream.aisstream.io/v0/stream` | Vị trí tàu AIS (lat/lng, tốc độ, tên) theo **MMSI 9 số** | Miễn phí, đăng nhập GitHub |
+| **SeaRates** | [tracking API](https://www.searates.com/reference/tracking) | Có — REST | Container, bill of lading, lịch tàu POL→POD | Trả phí / trial |
+| **ShipsGo** | [shipsgo.com](https://shipsgo.com) | Có — REST | Container / B/L | Trả phí |
+| **JSONCargo** | [jsoncargo.com](https://jsoncargo.com) | Có — REST | Đổi tên/IMO tàu → MMSI; container | Trả phí |
+| tracktrace (`dhruvkar/tracktrace`) | GitHub 404 | Không | Scrape web hãng — đã chết vì Cloudflare | — |
 
-Hai hướng mở khác thường được nhắc tới:
+**AISStream không thay được tracking container.** AIS là tín hiệu radio của tàu, không biết số container trên tàu. Muốn ngày Gate in / Loaded / ETD / ETA / Discharged thì cần SeaRates hoặc ShipsGo.
 
-- [DCSA Track & Trace](https://github.com/dcsaorg) — chuẩn API mở của ngành (Maersk, Hapag-Lloyd, ONE… triển khai). Vẫn cần credential từng hãng.
-- [`castro-aduaneira/container-tracker`](https://github.com/castro-aduaneira/container-tracker) — nền tảng tracking đầy đủ, nặng hơn một app tra cứu.
+Luồng gợi ý:
 
-`tracktrace` gần như không còn chạy được: website hãng tàu (Maersk, MSC, …) chặn scraper bằng Cloudflare/Akamai, và repo GitHub gốc hiện 404. OceanTrack giữ cách làm của tracktrace (nhận diện ISO 6346, map prefix → hãng, timeline chung) nhưng lấy dữ liệu live qua API:
+1. Tạo key miễn phí tại [aisstream.io](https://aisstream.io) → `AISSTREAM_API_KEY`
+2. (Shipment) tạo key SeaRates → `SEARATES_API_KEY`
+3. Tab Tàu: paste MMSI (ví dụ Ever Given `353136000`) → vị trí live từ AISStream
+4. Tab Shipment: paste số container/bill → lịch live từ SeaRates; nếu có MMSI tàu thì app bổ sung vị trí AISStream
 
-| Nguồn | Dùng khi | Tra cứu |
-| --- | --- | --- |
-| [JSONCargo](https://jsoncargo.com) | `JSONCARGO_API_KEY` | Container, B/L, tàu (AIS) |
-| [ShipsGo](https://shipsgo.com) | `SHIPSGO_AUTH_CODE` | Container, B/L (phổ biến ở VN) |
-| Demo | không có key | `MSKU3900520`, `MAEU918273645`, `MAERSK ESSEN`, `EVER GIVEN` |
-
-Không có key thì app vẫn chạy với dữ liệu mẫu và luôn đưa link trang chính thức của hãng.
-
-## Chạy local
+## Máy công ty (Cursor bị chặn)
 
 ```bash
+git clone -b cursor/ocean-container-tracking-c40c https://github.com/vuongnhatnam0509-art/Nam.vuong.git
+cd Nam.vuong
+git pull
 npm install
-cp .env.example .env.local
-npm run dev
 ```
 
-Mở [http://localhost:3000](http://localhost:3000).
+Admin tạo file `.env.local` (không commit):
+
+```
+AISSTREAM_API_KEY=điền_key
+SEARATES_API_KEY=điền_key
+```
+
+Chạy cho cả phòng ban trên LAN:
 
 ```bash
-npm test
 npm run build
+npm run start
 ```
 
-## Biến môi trường
+Máy khác mở `http://IP-MAY-CHU:3000` (cùng mạng). Cần mạng ra được `stream.aisstream.io` (WebSocket) và `tracking.searates.com`.
 
-Xem `.env.example`.
+Hoặc lúc dev: `npm run dev` rồi mở http://localhost:3000
 
-- JSONCargo: đăng ký plan, lấy API key, dán vào `JSONCARGO_API_KEY`.
-- ShipsGo: lấy `authCode` trên dashboard, dán vào `SHIPSGO_AUTH_CODE`.
+## Dùng hàng ngày
 
-Hãng hỗ trợ (JSONCargo): Maersk, MSC, CMA CGM, Hapag-Lloyd, ONE, Evergreen, COSCO, HMM, Yang Ming, ZIM, PIL.
+1. Tab **Shipment**: paste số container hoặc bill → bảng ngày giờ + timeline (**cần SeaRates/ShipsGo**)
+2. Tàu: paste **MMSI** hoặc tên trong bảng công khai (Ever Given, Maersk Essen, CMA CGM Marco Polo, OOCL Hong Kong) → AISStream live; **giữ trang mở** để vị trí cập nhật
+3. **Danh sách hàng loạt**: dán nhiều số hoặc tải CSV/Excel (tối đa 40) → tra một lúc, có thể «Theo dõi» cả list
+4. Tab **Theo dõi**: tự làm mới mỗi 3 phút, cờ đỏ nếu ETA lùi ≥12 giờ hoặc ETA đã quá hạn
+5. Tab **Lịch tàu**: POL→POD (**cần SeaRates**)
+6. **Xem mẫu** chỉ để xem giao diện — banner vàng = không phải live
 
-## API nội bộ
+App **không phải Project44**: chỉ ocean, không EDI hãng, không air/truck. Muốn shipment live thì cần SeaRates; AISStream không đọc số container.
 
-```bash
-curl -X POST http://localhost:3000/api/track \
-  -H 'content-type: application/json' \
-  -d '{"query":"MSKU3900520","kind":"auto"}'
-```
+## GitHub
 
-`kind`: `auto` | `container` | `bl` | `vessel`. Có thể thêm `carrier` (`MAERSK`, `MSC`, …) khi prefix container là thùng thuê (TCLU, TEMU, …).
+Code nằm nhánh `cursor/ocean-container-tracking-c40c`. PR: https://github.com/vuongnhatnam0509-art/Nam.vuong/pull/2
 
-## Nhận diện mã
-
-- Container ISO 6346: 4 chữ (kết thúc `U`/`J`/`Z`) + 7 số, ví dụ `MSKU3900520` → Maersk
-- Bill of lading: chuỗi chữ/số 6–20 ký tự
-- Tàu: tên (`MAERSK ESSEN`), IMO 7 số, hoặc MMSI 9 số
+Không push file `.env.local` hay `data/watchlist.json`.

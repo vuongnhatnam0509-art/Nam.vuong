@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { trackShipment } from "@/lib/providers";
+import { liveProviderNames } from "@/lib/providers/keys";
 import type { QueryKind } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -14,10 +15,14 @@ function parseKind(value: string | null): "auto" | QueryKind | undefined {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
+  if (searchParams.get("status") === "1") {
+    return NextResponse.json({ liveProviders: liveProviderNames() });
+  }
   const result = await trackShipment({
     query: searchParams.get("q") ?? searchParams.get("query") ?? "",
     kind: parseKind(searchParams.get("kind")),
     carrier: searchParams.get("carrier") ?? undefined,
+    demo: searchParams.get("demo") === "1" || searchParams.get("demo") === "true",
   });
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
@@ -28,11 +33,15 @@ export async function POST(request: NextRequest) {
     q?: string;
     kind?: string;
     carrier?: string;
+    demo?: boolean;
+    keys?: { searates?: string; shipsgo?: string; jsoncargo?: string; aisstream?: string };
   };
   const result = await trackShipment({
     query: body.query ?? body.q ?? "",
     kind: parseKind(body.kind ?? null),
     carrier: body.carrier,
+    demo: body.demo === true,
+    keys: body.keys,
   });
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }

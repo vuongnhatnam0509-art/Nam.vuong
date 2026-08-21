@@ -1,12 +1,13 @@
 import { officialTrackingUrls } from "../carriers";
 import type { Carrier, TrackingEvent, TrackingResult } from "../types";
+import { resolvedKeys, type ProviderKeys } from "./keys";
 
-function authCode(): string | undefined {
-  return process.env.SHIPSGO_AUTH_CODE?.trim() || undefined;
+function authCode(keys?: ProviderKeys): string | undefined {
+  return resolvedKeys(keys).shipsgo;
 }
 
-export function hasShipsGo(): boolean {
-  return Boolean(authCode());
+export function hasShipsGo(keys?: ProviderKeys): boolean {
+  return Boolean(authCode(keys));
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -48,8 +49,8 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
-async function createShipment(kind: "container" | "bl", query: string, carrier: Carrier | null) {
-  const code = authCode();
+async function createShipment(kind: "container" | "bl", query: string, carrier: Carrier | null, keys?: ProviderKeys) {
+  const code = authCode(keys);
   if (!code) throw new Error("Missing SHIPSGO_AUTH_CODE");
 
   const form = new URLSearchParams();
@@ -69,8 +70,8 @@ async function createShipment(kind: "container" | "bl", query: string, carrier: 
   return { ok: response.ok, status: response.status, body };
 }
 
-async function getVoyage(requestId: string): Promise<Record<string, unknown>> {
-  const code = authCode();
+async function getVoyage(requestId: string, keys?: ProviderKeys): Promise<Record<string, unknown>> {
+  const code = authCode(keys);
   if (!code) throw new Error("Missing SHIPSGO_AUTH_CODE");
 
   const url = new URL("https://shipsgo.com/api/v1.2/ContainerService/GetContainerInfo/");
@@ -137,6 +138,8 @@ function toResult(
     vessel: {
       name: str(pick(data, ["vessel", "Vessel", "vessel_name"])) ?? "Unknown",
       voyage: str(pick(data, ["voyage", "Voyage"])),
+      mmsi: str(pick(data, ["mmsi", "MMSI"])),
+      imo: str(pick(data, ["imo", "IMO"])),
       lat: num(pick(data, ["latitude", "Latitude", "lat"])),
       lng: num(pick(data, ["longitude", "Longitude", "lng", "lon"])),
     },
@@ -153,17 +156,18 @@ export async function trackWithShipsGo(
   kind: "container" | "bl",
   query: string,
   carrier: Carrier | null,
+  keys?: ProviderKeys,
 ): Promise<TrackingResult> {
-  const created = await createShipment(kind, query, carrier);
+  const created = await createShipment(kind, query, carrier, keys);
   const createdBody = asRecord(created.body);
   const requestId =
     str(pick(createdBody, ["requestId", "RequestId", "id", "Id"])) ?? query;
 
   try {
-    const voyage = await getVoyage(requestId);
+    const voyage = await getVoyage(requestId, keys);
     return toResult(kind, query, carrier, voyage);
   } catch {
-    const voyage = await getVoyage(query);
+    const voyage = await getVoyage(query, keys);
     return toResult(kind, query, carrier, voyage);
   }
 }
