@@ -497,6 +497,12 @@ tr.delayed td {
   border: 0;
 }
 
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .schedule-form {
   display: grid;
   grid-template-columns: 1fr 1fr 160px 180px;
@@ -546,7 +552,12 @@ td {
 }
 
 @media (max-width: 900px) {
-  .mmsi-form {
+  .mmsi-form,
+  .date-board,
+  .schedule-form,
+  .search-row,
+  .split,
+  .meta-grid {
     grid-template-columns: 1fr;
   }
 
