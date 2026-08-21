@@ -1,18 +1,20 @@
 import { officialTrackingUrls } from "../carriers";
 import type { Carrier, TrackingEvent, TrackingResult, VesselInfo } from "../types";
 
+import { resolvedKeys, type ProviderKeys } from "./keys";
+
 const BASE = "https://api.jsoncargo.com";
 
-function apiKey(): string | undefined {
-  return process.env.JSONCARGO_API_KEY?.trim() || undefined;
+function apiKey(keys?: ProviderKeys): string | undefined {
+  return resolvedKeys(keys).jsoncargo;
 }
 
-export function hasJsonCargo(): boolean {
-  return Boolean(apiKey());
+export function hasJsonCargo(keys?: ProviderKeys): boolean {
+  return Boolean(apiKey(keys));
 }
 
-async function getJson(path: string, params?: Record<string, string | undefined>) {
-  const key = apiKey();
+async function getJson(path: string, params?: Record<string, string | undefined>, keys?: ProviderKeys) {
+  const key = apiKey(keys);
   if (!key) throw new Error("Missing JSONCARGO_API_KEY");
 
   const url = new URL(path, BASE);
@@ -63,10 +65,11 @@ function num(value: unknown): number | null {
 export async function trackContainerJsonCargo(
   number: string,
   carrier: Carrier | null,
+  keys?: ProviderKeys,
 ): Promise<TrackingResult> {
   const data = (await getJson(`/api/v1/containers/${encodeURIComponent(number)}`, {
     shipping_line: carrier?.jsoncargo,
-  })) as Record<string, unknown>;
+  }, keys)) as Record<string, unknown>;
 
   const events: TrackingEvent[] = [];
   const push = (
@@ -129,6 +132,7 @@ export async function trackContainerJsonCargo(
 export async function trackBillJsonCargo(
   bl: string,
   carrier: Carrier | null,
+  keys?: ProviderKeys,
 ): Promise<TrackingResult> {
   if (!carrier?.jsoncargo) {
     throw new Error("Bill of lading cần chọn hãng tàu (Maersk, MSC, CMA CGM, ...)");
@@ -136,7 +140,7 @@ export async function trackBillJsonCargo(
 
   const data = (await getJson(`/api/v1/containers/bol/${encodeURIComponent(bl)}`, {
     shipping_line: carrier.jsoncargo,
-  })) as Record<string, unknown>;
+  }, keys)) as Record<string, unknown>;
 
   const related = Array.isArray(data.associated_container_numbers)
     ? data.associated_container_numbers.map(String)
@@ -145,7 +149,7 @@ export async function trackBillJsonCargo(
   let first: TrackingResult | null = null;
   if (related[0]) {
     try {
-      first = await trackContainerJsonCargo(related[0], carrier);
+      first = await trackContainerJsonCargo(related[0], carrier, keys);
     } catch {
       first = null;
     }
@@ -173,20 +177,20 @@ export async function trackBillJsonCargo(
   };
 }
 
-export async function trackVesselJsonCargo(query: string): Promise<TrackingResult> {
+export async function trackVesselJsonCargo(query: string, keys?: ProviderKeys): Promise<TrackingResult> {
   const compact = query.replace(/\s+/g, "");
   let basic: Record<string, unknown> | null = null;
 
   if (/^\d{7}$/.test(compact)) {
-    basic = (await getJson("/api/v1/vessel/basic", { imo: compact })) as Record<string, unknown>;
+    basic = (await getJson("/api/v1/vessel/basic", { imo: compact }, keys)) as Record<string, unknown>;
   } else if (/^\d{9}$/.test(compact)) {
-    basic = (await getJson("/api/v1/vessel/basic", { mmsi: compact })) as Record<string, unknown>;
+    basic = (await getJson("/api/v1/vessel/basic", { mmsi: compact }, keys)) as Record<string, unknown>;
   } else {
     const found = await getJson("/api/v1/vessel/finder", {
       name: query,
       fuzzy: "1",
       limit: "5",
-    });
+    }, keys);
     const rows = Array.isArray(found)
       ? found
       : found && typeof found === "object" && Array.isArray((found as { results?: unknown[] }).results)
@@ -204,11 +208,11 @@ export async function trackVesselJsonCargo(query: string): Promise<TrackingResul
       (first.mmsi as string | undefined);
     if (!id) throw new Error("Không tìm thấy tàu");
     if (first.uuid) {
-      basic = (await getJson("/api/v1/vessel/basic", { uuid: String(first.uuid) })) as Record<string, unknown>;
+      basic = (await getJson("/api/v1/vessel/basic", { uuid: String(first.uuid) }, keys)) as Record<string, unknown>;
     } else if (first.imo) {
-      basic = (await getJson("/api/v1/vessel/basic", { imo: String(first.imo) })) as Record<string, unknown>;
+      basic = (await getJson("/api/v1/vessel/basic", { imo: String(first.imo) }, keys)) as Record<string, unknown>;
     } else {
-      basic = (await getJson("/api/v1/vessel/basic", { mmsi: String(first.mmsi) })) as Record<string, unknown>;
+      basic = (await getJson("/api/v1/vessel/basic", { mmsi: String(first.mmsi) }, keys)) as Record<string, unknown>;
     }
   }
 

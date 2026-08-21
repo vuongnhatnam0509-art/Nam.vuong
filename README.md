@@ -1,62 +1,47 @@
 # OceanTrack
 
-App web tra cứu **container**, **bill of lading** và **tàu** — nhập một mã, nhận hành trình, ETA và vị trí AIS.
+Paste **số container**, **bill of lading** hoặc **tàu** → hành trình live từ hãng tàu.
 
-## Thư viện mở mà app dựa trên
+Hãng tàu (Maersk, MSC, …) không mở JSON công khai. App gọi aggregator **một lần key**, sau đó chỉ việc paste số.
 
-Repo GitHub kinh điển cho việc này là [`dhruvkar/tracktrace`](https://github.com/dhruvkar/tracktrace) (PyPI: `tracktrace`): nhận số container + SCAC, gọi từng hãng tàu (MSC, CMA CGM, Hapag-Lloyd, ONE, …) rồi trả timeline thống nhất.
+## Chạy trên máy công ty
 
-Hai hướng mở khác thường được nhắc tới:
-
-- [DCSA Track & Trace](https://github.com/dcsaorg) — chuẩn API mở của ngành (Maersk, Hapag-Lloyd, ONE… triển khai). Vẫn cần credential từng hãng.
-- [`castro-aduaneira/container-tracker`](https://github.com/castro-aduaneira/container-tracker) — nền tảng tracking đầy đủ, nặng hơn một app tra cứu.
-
-`tracktrace` gần như không còn chạy được: website hãng tàu (Maersk, MSC, …) chặn scraper bằng Cloudflare/Akamai, và repo GitHub gốc hiện 404. OceanTrack giữ cách làm của tracktrace (nhận diện ISO 6346, map prefix → hãng, timeline chung) nhưng lấy dữ liệu live qua API:
-
-| Nguồn | Dùng khi | Tra cứu |
-| --- | --- | --- |
-| [JSONCargo](https://jsoncargo.com) | `JSONCARGO_API_KEY` | Container, B/L, tàu (AIS) |
-| [ShipsGo](https://shipsgo.com) | `SHIPSGO_AUTH_CODE` | Container, B/L (phổ biến ở VN) |
-| Demo | không có key | `MSKU3900520`, `MAEU918273645`, `MAERSK ESSEN`, `EVER GIVEN` |
-
-Không có key thì app vẫn chạy với dữ liệu mẫu và luôn đưa link trang chính thức của hãng.
-
-## Chạy local
+Tải nhánh `cursor/ocean-container-tracking-c40c` (không phải `main`):
 
 ```bash
+git clone -b cursor/ocean-container-tracking-c40c https://github.com/vuongnhatnam0509-art/Nam.vuong.git
+cd Nam.vuong
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-Mở [http://localhost:3000](http://localhost:3000).
+Mở http://localhost:3000
 
-```bash
-npm test
-npm run build
-```
+1. Bấm **Cài đặt API**
+2. Dán **một** key:
+   - [SeaRates](https://www.searates.com/reference/tracking) — nên dùng: tự nhận hãng, container + bill + vị trí AIS của tàu
+   - hoặc [ShipsGo](https://shipsgo.com) — phổ biến ở VN (container/bill)
+   - [JSONCargo](https://jsoncargo.com) — thêm nếu cần tìm tàu theo tên/IMO
+3. Paste số container / bill / tàu rồi **Tra cứu**
 
-## Biến môi trường
+Key lưu trên máy (localStorage hoặc `.env.local`), không commit lên GitHub.
 
-Xem `.env.example`.
+## Vì sao cần key
 
-- JSONCargo: đăng ký plan, lấy API key, dán vào `JSONCARGO_API_KEY`.
-- ShipsGo: lấy `authCode` trên dashboard, dán vào `SHIPSGO_AUTH_CODE`.
+Thư viện mở cũ [`tracktrace`](https://github.com/dhruvkar/tracktrace) scrape website hãng. Hiện Maersk/MSC/SeaRates chặn Cloudflare. Cách ổn định duy nhất: API aggregator.
 
-Hãng hỗ trợ (JSONCargo): Maersk, MSC, CMA CGM, Hapag-Lloyd, ONE, Evergreen, COSCO, HMM, Yang Ming, ZIM, PIL.
+| Key | Container | Bill | Tàu theo tên/IMO | AIS trên chuyến |
+| --- | --- | --- | --- | --- |
+| SeaRates | có | có | không | có |
+| ShipsGo | có | có | không | có (mapPoint) |
+| JSONCargo | có | có (cần chọn hãng) | có | có |
 
 ## API nội bộ
 
 ```bash
 curl -X POST http://localhost:3000/api/track \
   -H 'content-type: application/json' \
-  -d '{"query":"MSKU3900520","kind":"auto"}'
+  -d '{"query":"MSKU3900520","kind":"auto","keys":{"searates":"YOUR_KEY"}}'
 ```
 
-`kind`: `auto` | `container` | `bl` | `vessel`. Có thể thêm `carrier` (`MAERSK`, `MSC`, …) khi prefix container là thùng thuê (TCLU, TEMU, …).
-
-## Nhận diện mã
-
-- Container ISO 6346: 4 chữ (kết thúc `U`/`J`/`Z`) + 7 số, ví dụ `MSKU3900520` → Maersk
-- Bill of lading: chuỗi chữ/số 6–20 ký tự
-- Tàu: tên (`MAERSK ESSEN`), IMO 7 số, hoặc MMSI 9 số
+`kind`: `auto` | `container` | `bl` | `vessel`

@@ -100,6 +100,45 @@ a {
   margin-bottom: 22px;
 }
 
+.top-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 8px;
+}
+
+.ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--foam);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.settings-title {
+  margin: 0 0 8px;
+  color: var(--sand);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field input {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #07141f;
+  color: var(--ink);
+  padding: 0 14px;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;

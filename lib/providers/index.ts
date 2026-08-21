@@ -8,18 +8,14 @@ import {
   trackContainerJsonCargo,
   trackVesselJsonCargo,
 } from "./jsoncargo";
+import { liveProviderNames } from "./keys";
+import { hasSeaRates, trackWithSeaRates } from "./searates";
 import { hasShipsGo, trackWithShipsGo } from "./shipsgo";
-
-export function liveProviders(): string[] {
-  const names: string[] = [];
-  if (hasJsonCargo()) names.push("JSONCargo");
-  if (hasShipsGo()) names.push("ShipsGo");
-  return names;
-}
 
 export async function trackShipment(input: TrackRequest): Promise<TrackResponse> {
   const query = input.query?.trim() ?? "";
-  const providers = liveProviders();
+  const keys = input.keys;
+  const providers = liveProviderNames(keys);
 
   if (!query) {
     return {
@@ -49,24 +45,26 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
     };
   }
 
-  const demo = getDemoResult(detected.kind, detected.normalized);
   const errors: string[] = [];
 
   if (detected.kind === "vessel") {
-    if (hasJsonCargo()) {
+    if (hasJsonCargo(keys)) {
       try {
-        const result = await trackVesselJsonCargo(detected.normalized);
+        const result = await trackVesselJsonCargo(detected.normalized, keys);
         return { ok: true, result, demo: false, liveProviders: providers };
       } catch (error) {
         errors.push(error instanceof Error ? error.message : "JSONCargo vessel error");
       }
     }
-    if (demo) {
+    const demo = getDemoResult(detected.kind, detected.normalized);
+    if (demo && providers.length === 0) {
       return { ok: true, result: demo, demo: true, liveProviders: providers };
     }
     return {
       ok: false,
-      error: errors[0] || "Chưa có API key tàu (JSONCARGO_API_KEY). Dùng mẫu MAERSK ESSEN hoặc EVER GIVEN.",
+      error:
+        errors[0] ||
+        "Tìm tàu theo tên/IMO cần JSONCargo API key. Container và bill dùng SeaRates hoặc ShipsGo.",
       code: providers.length ? "not_found" : "no_provider",
       detected,
       officialUrls: urls,
@@ -74,28 +72,38 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
     };
   }
 
-  if (hasJsonCargo()) {
+  if (hasSeaRates(keys)) {
+    try {
+      const result = await trackWithSeaRates(detected.kind, detected.normalized, detected.carrier, keys);
+      return { ok: true, result, demo: false, liveProviders: providers };
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "SeaRates error");
+    }
+  }
+
+  if (hasJsonCargo(keys)) {
     try {
       const result =
         detected.kind === "bl"
-          ? await trackBillJsonCargo(detected.normalized, detected.carrier)
-          : await trackContainerJsonCargo(detected.normalized, detected.carrier);
+          ? await trackBillJsonCargo(detected.normalized, detected.carrier, keys)
+          : await trackContainerJsonCargo(detected.normalized, detected.carrier, keys);
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "JSONCargo error");
     }
   }
 
-  if (hasShipsGo()) {
+  if (hasShipsGo(keys)) {
     try {
-      const result = await trackWithShipsGo(detected.kind, detected.normalized, detected.carrier);
+      const result = await trackWithShipsGo(detected.kind, detected.normalized, detected.carrier, keys);
       return { ok: true, result, demo: false, liveProviders: providers };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "ShipsGo error");
     }
   }
 
-  if (demo) {
+  const demo = getDemoResult(detected.kind, detected.normalized);
+  if (demo && providers.length === 0) {
     return { ok: true, result: demo, demo: true, liveProviders: providers };
   }
 
@@ -103,9 +111,7 @@ export async function trackShipment(input: TrackRequest): Promise<TrackResponse>
     ok: false,
     error:
       errors[0] ||
-      (providers.length
-        ? "Không tìm thấy lô hàng trên API."
-        : "Chưa cấu hình API. Thêm JSONCARGO_API_KEY hoặc SHIPSGO_AUTH_CODE, hoặc thử mã demo MSKU3900520."),
+      "Chưa có API key. Mở Cài đặt, dán SeaRates hoặc ShipsGo key một lần — sau đó chỉ việc paste số container/bill.",
     code: providers.length ? "not_found" : "no_provider",
     detected,
     officialUrls: urls,

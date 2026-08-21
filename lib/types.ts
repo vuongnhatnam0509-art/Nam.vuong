@@ -54,7 +54,7 @@ export type VesselInfo = {
 export type TrackingResult = {
   kind: QueryKind;
   query: string;
-  source: "jsoncargo" | "shipsgo" | "demo";
+  source: "searates" | "jsoncargo" | "shipsgo" | "demo";
   carrier: Carrier | null;
   containerNumber?: string | null;
   billOfLading?: string | null;
@@ -82,6 +82,11 @@ export type TrackRequest = {
   query: string;
   kind?: "auto" | QueryKind;
   carrier?: string;
+  keys?: {
+    searates?: string;
+    shipsgo?: string;
+    jsoncargo?: string;
+  };
 };
 
 export type TrackResponse =

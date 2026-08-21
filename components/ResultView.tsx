@@ -14,7 +14,7 @@ export function ResultView({ result, demo }: { result: TrackingResult; demo: boo
           Đang hiển thị <strong>dữ liệu mẫu</strong>. Gắn JSONCARGO_API_KEY hoặc SHIPSGO_AUTH_CODE để tra cứu thật.
         </div>
       ) : (
-        <div className="banner live">Nguồn: {result.source === "jsoncargo" ? "JSONCargo" : "ShipsGo"}</div>
+        <div className="banner live">Nguồn: {result.source === "searates" ? "SeaRates (hãng tàu live)" : result.source === "jsoncargo" ? "JSONCargo" : "ShipsGo"}</div>
       )}
 
       <header className="hero-card">

@@ -17,4 +17,11 @@ describe("trackShipment demo", () => {
     if (!response.ok) return;
     expect(response.result.vessel?.imo).toBe("9811000");
   });
+
+  it("requires an API key for a live container that is not a demo sample", async () => {
+    const response = await trackShipment({ query: "MSKU1234565" });
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    expect(response.code).toBe("no_provider");
+  });
 });
