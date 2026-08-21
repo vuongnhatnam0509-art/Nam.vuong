@@ -3,13 +3,17 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CARRIERS } from "@/lib/carriers";
-import type { QueryKind, TrackResponse } from "@/lib/types";
+import { formatDate } from "@/lib/format";
+import { lastAndNext } from "@/lib/milestones";
+import type { QueryKind, TrackResponse, WatchItem } from "@/lib/types";
 import { ResultView } from "./ResultView";
+import { ScheduleBoard } from "./ScheduleBoard";
 
 const HISTORY_KEY = "ocean-track-history";
 const KEYS_KEY = "ocean-track-keys";
 
 type KindOption = "auto" | QueryKind;
+type AppTab = "shipment" | "schedule" | "watch";
 type SavedKeys = { searates: string; shipsgo: string; jsoncargo: string };
 
 function readKeys(): SavedKeys {
@@ -36,6 +40,8 @@ export function TrackerApp() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<TrackResponse | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tab, setTab] = useState<AppTab>("shipment");
+  const [watchlist, setWatchlist] = useState<WatchItem[]>([]);
   const [keys, setKeys] = useState<SavedKeys>(readKeys);
   const [envProviders, setEnvProviders] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>(() => {
@@ -54,6 +60,10 @@ export function TrackerApp() {
       .then((res) => res.json())
       .then((data: { liveProviders?: string[] }) => setEnvProviders(data.liveProviders ?? []))
       .catch(() => undefined);
+    void fetch("/api/watchlist")
+      .then((res) => res.json())
+      .then((data: { items?: WatchItem[] }) => setWatchlist(data.items ?? []))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -67,8 +77,8 @@ export function TrackerApp() {
   const hasLive = Boolean(keys.searates || keys.shipsgo || keys.jsoncargo || envProviders.length);
 
   const providersLabel = useMemo(() => {
-    if (hasLive) return "Live: paste số container / bill / tàu";
-    return "Chưa gắn API — mở Cài đặt để lấy dữ liệu hãng tàu";
+    if (hasLive) return "Visibility nội bộ · paste số là ra lịch";
+    return "Chưa gắn API — admin dán SeaRates key một lần";
   }, [hasLive]);
 
   function saveKeys(next: SavedKeys) {
@@ -131,12 +141,44 @@ export function TrackerApp() {
     void search(query, kind, carrier);
   }
 
+  async function watchCurrent() {
+    if (!response?.ok) return;
+    const result = response.result;
+    const { last } = lastAndNext(result.events);
+    const res = await fetch("/api/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: result.containerNumber || result.billOfLading || result.query,
+        kind: result.kind,
+        carrier: result.carrier?.code,
+        status: result.status,
+        origin: result.loadingPort || result.origin,
+        destination: result.dischargingPort || result.destination,
+        etd: result.atd,
+        eta: result.eta,
+        vessel: result.vessel?.name,
+        voyage: result.vessel?.voyage,
+        lastEvent: last ? `${last.status} · ${last.time ?? ""}` : null,
+      }),
+    });
+    const data = (await res.json()) as { items?: WatchItem[] };
+    setWatchlist(data.items ?? []);
+    setTab("watch");
+  }
+
+  async function unwatch(id: string) {
+    const res = await fetch(`/api/watchlist?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const data = (await res.json()) as { items?: WatchItem[] };
+    setWatchlist(data.items ?? []);
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
         <div>
           <p className="logo">OceanTrack</p>
-          <p className="tag">Paste số container, bill hoặc tàu — lấy dữ liệu live từ hãng</p>
+          <p className="tag">Visibility nội bộ — paste số shipment, ra ngày giờ lịch tàu</p>
         </div>
         <div className="top-actions">
           <p className="provider-note">{providersLabel}</p>
@@ -148,17 +190,15 @@ export function TrackerApp() {
 
       {settingsOpen && (
         <section className="search-card">
-          <h3 className="settings-title">Dán API key một lần, rồi chỉ việc paste số</h3>
+          <h3 className="settings-title">Admin dán key một lần — cả công ty dùng chung</h3>
           <p className="muted">
-            Hãng tàu không cho lấy JSON công khai. Cần 1 key aggregator. Nên dùng{" "}
+            Nên ghi key vào <code>.env.local</code> trên máy chủ nội bộ (<code>SEARATES_API_KEY</code>) để mọi phòng
+            ban mở cùng URL là có dữ liệu live, không cần mỗi người dán key. Hoặc dán tại đây trên máy này.
+            Đăng ký:{" "}
             <a href="https://www.searates.com/reference/tracking" target="_blank" rel="noreferrer">
-              SeaRates
-            </a>{" "}
-            (tự nhận hãng, container + bill + AIS tàu) hoặc{" "}
-            <a href="https://shipsgo.com" target="_blank" rel="noreferrer">
-              ShipsGo
-            </a>{" "}
-            (phổ biến ở VN). Key lưu trên máy này, không đưa lên GitHub.
+              SeaRates Tracking + Schedules
+            </a>
+            .
           </p>
           <label className="field">
             SeaRates API key
@@ -192,11 +232,81 @@ export function TrackerApp() {
 
       {!hasLive && (
         <div className="banner error">
-          Chưa có API key nên chưa lấy được dữ liệu live. Bấm <strong>Cài đặt API</strong>, dán SeaRates
-          hoặc ShipsGo key, rồi paste số container/bill.
+          Chưa có API key nên chưa lấy được dữ liệu live. Admin dán SeaRates key trong Cài đặt hoặc file
+          <code> .env.local</code>, rồi các phòng chỉ việc paste số shipment.
         </div>
       )}
 
+      <div className="tabs app-tabs">
+        {(
+          [
+            ["shipment", "Shipment"],
+            ["schedule", "Lịch tàu"],
+            ["watch", `Theo dõi (${watchlist.length})`],
+          ] as const
+        ).map(([value, label]) => (
+          <button key={value} type="button" className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "schedule" && <ScheduleBoard keys={{ searates: keys.searates || undefined }} />}
+
+      {tab === "watch" && (
+        <section className="search-card">
+          <h3 className="settings-title">Shipment các phòng đang theo dõi</h3>
+          {watchlist.length === 0 && <p className="muted">Chưa có shipment. Tra cứu xong bấm Theo dõi.</p>}
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Số</th>
+                  <th>Hãng</th>
+                  <th>Tuyến</th>
+                  <th>ETD</th>
+                  <th>ETA</th>
+                  <th>Tàu</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {watchlist.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="linkish"
+                        onClick={() => {
+                          setTab("shipment");
+                          void search(item.query, item.kind, item.carrier ?? "");
+                        }}
+                      >
+                        {item.query}
+                      </button>
+                    </td>
+                    <td>{item.carrier || "—"}</td>
+                    <td>
+                      {item.origin || "—"} → {item.destination || "—"}
+                    </td>
+                    <td>{formatDate(item.etd)}</td>
+                    <td>{formatDate(item.eta)}</td>
+                    <td>{item.vessel || "—"}</td>
+                    <td>
+                      <button type="button" className="ghost" onClick={() => void unwatch(item.id)}>
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {tab === "shipment" && (
+        <>
       <section className="search-card">
         <form onSubmit={onSubmit}>
           <div className="tabs" role="tablist">
@@ -253,7 +363,7 @@ export function TrackerApp() {
         )}
       </section>
 
-      {response?.ok && <ResultView result={response.result} demo={response.demo} />}
+      {response?.ok && <ResultView result={response.result} demo={response.demo} onWatch={() => void watchCurrent()} />}
 
       {response && !response.ok && (
         <section className="result">
@@ -275,6 +385,8 @@ export function TrackerApp() {
             </div>
           )}
         </section>
+      )}
+        </>
       )}
     </div>
   );

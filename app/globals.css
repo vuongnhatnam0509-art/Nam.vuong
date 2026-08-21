@@ -349,17 +349,98 @@ a {
   gap: 8px;
 }
 
-@media (max-width: 800px) {
+.app-tabs {
+  margin: 0 0 16px;
+}
+
+.date-board {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+
+.date-board div {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(8, 20, 32, 0.55);
+}
+
+.date-board span,
+.date-board em,
+.date-board p {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.date-board strong {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 14px;
+}
+
+.date-board .expected strong {
+  color: var(--sand);
+}
+
+.schedule-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 160px 180px;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.schedule-form select,
+.schedule-form button {
+  height: 48px;
+  border-radius: 14px;
+}
+
+.schedule-form button {
+  border: 0;
+  background: var(--sand);
+  color: #1b1408;
+  font-weight: 700;
+}
+
+.table-wrap {
+  overflow: auto;
+  margin-top: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--teal);
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .date-board,
+  .schedule-form,
   .search-row,
   .split,
-  .meta-grid,
-  .topbar {
+  .meta-grid {
     grid-template-columns: 1fr;
-    display: grid;
-  }
-
-  .search-row {
-    display: grid;
   }
 
   .topbar {

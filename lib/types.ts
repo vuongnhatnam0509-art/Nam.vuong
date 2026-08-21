@@ -78,6 +78,23 @@ export type TrackingResult = {
   lastUpdated?: string | null;
 };
 
+export type WatchItem = {
+  id: string;
+  query: string;
+  kind: QueryKind;
+  carrier?: string | null;
+  status?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  etd?: string | null;
+  eta?: string | null;
+  vessel?: string | null;
+  voyage?: string | null;
+  lastEvent?: string | null;
+  watchedAt: string;
+  refreshedAt?: string | null;
+};
+
 export type TrackRequest = {
   query: string;
   kind?: "auto" | QueryKind;

@@ -1,9 +1,18 @@
 import { formatCoord, formatDateTime } from "@/lib/format";
 import type { TrackingResult } from "@/lib/types";
+import { DateBoard } from "./DateBoard";
 import { MapEmbed } from "./MapEmbed";
 import { Timeline } from "./Timeline";
 
-export function ResultView({ result, demo }: { result: TrackingResult; demo: boolean }) {
+export function ResultView({
+  result,
+  demo,
+  onWatch,
+}: {
+  result: TrackingResult;
+  demo: boolean;
+  onWatch?: () => void;
+}) {
   const vessel = result.vessel;
   const hasMap = vessel?.lat != null && vessel?.lng != null;
 
@@ -11,7 +20,7 @@ export function ResultView({ result, demo }: { result: TrackingResult; demo: boo
     <section className="result">
       {demo ? (
         <div className="banner demo">
-          Đang hiển thị <strong>dữ liệu mẫu</strong>. Gắn JSONCARGO_API_KEY hoặc SHIPSGO_AUTH_CODE để tra cứu thật.
+          Đang hiển thị <strong>dữ liệu mẫu</strong>. Gắn SeaRates/ShipsGo API key để lấy lịch live từ hãng.
         </div>
       ) : (
         <div className="banner live">Nguồn: {result.source === "searates" ? "SeaRates (hãng tàu live)" : result.source === "jsoncargo" ? "JSONCargo" : "ShipsGo"}</div>
@@ -27,7 +36,13 @@ export function ResultView({ result, demo }: { result: TrackingResult; demo: boo
           </p>
           <h2>{result.containerNumber || result.billOfLading || vessel?.name || result.query}</h2>
           <p className="status">{result.status || "Đã tìm thấy"}</p>
+          {onWatch && (
+            <button type="button" className="ghost" onClick={onWatch}>
+              Theo dõi (các phòng cùng thấy)
+            </button>
+          )}
         </div>
+        <DateBoard result={result} />
         <div className="meta-grid">
           <Meta label="Đi" value={result.loadingPort || result.origin} />
           <Meta label="Đến" value={result.dischargingPort || result.destination} />
